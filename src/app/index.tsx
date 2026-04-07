@@ -1,0 +1,40 @@
+import { router } from "expo-router";
+import { useEffect } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+
+import { getTheme } from "@/lib/theme";
+import { useAppStore } from "@/lib/store";
+
+export default function IndexRoute() {
+  const appearance = useAppStore((state) => state.appearance);
+  const isOnboarded = useAppStore((state) => state.sleepSettings.isOnboarded);
+  const theme = getTheme(appearance);
+
+  useEffect(() => {
+    const href = isOnboarded ? "/(tabs)/home" : "/onboarding";
+    router.replace(href);
+  }, [isOnboarded]);
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.backgroundStart,
+        paddingHorizontal: 24,
+      }}
+    >
+      <ActivityIndicator color={theme.accent} size="large" />
+      <Text
+        style={{
+          color: theme.textSecondary,
+          marginTop: 16,
+          textAlign: "center",
+        }}
+      >
+        Opening Twilight…
+      </Text>
+    </View>
+  );
+}

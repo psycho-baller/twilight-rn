@@ -1,0 +1,503 @@
+import { MINIMUM_VALID_SESSION_SECONDS } from "@/lib/constants";
+import { addDays, clamp, minutesFromDate, startOfDay } from "@/lib/format";
+import type {
+  BlockedProfileSession,
+  DailySleepData,
+  SleepConsistencyPoint,
+  SleepDebtPoint,
+  SleepDurationBucket,
+  SleepMetricsRange,
+  SleepMovingAveragePoint,
+  SleepNightRecord,
+  SleepTrendPeriod,
+  SleepWeekdayAverage,
+} from "@/lib/types";
+
+export const SLEEP_DATA_BASE_HOUR = 18;
+
+const RANGE_DAYS: Record<Exclude<SleepMetricsRange, "All">, number> = {
+  "30D": 30,
+  "90D": 90,
+  "1Y": 365,
+};
+
+function toDate(value: string | null | undefined) {
+  return value ? new Date(value) : null;
+}
+
+function getParts(date: Date, timeZone?: string | null) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timeZone || undefined,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const read = (type: string) =>
+    Number(parts.find((item) => item.type === type)?.value ?? 0);
+
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+  };
+}
+
+function makeDayKey(date: Date, timeZone?: string | null) {
+  const parts = getParts(date, timeZone);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function dateFromDayKey(key: string) {
+  return new Date(`${key}T12:00:00`);
+}
+
+export function sessionDurationSeconds(session: BlockedProfileSession) {
+  const start = toDate(session.startTime);
+  const end = toDate(session.endTime) ?? new Date();
+  if (!start) return 0;
+  return Math.max(0, (end.getTime() - start.getTime()) / 1000);
+}
+
+export function isValidSession(session: BlockedProfileSession) {
+  return sessionDurationSeconds(session) >= MINIMUM_VALID_SESSION_SECONDS;
+}
+
+export function getSessionSleepDate(session: BlockedProfileSession) {
+  const end = toDate(session.endTime);
+  const start = toDate(session.startTime);
+  const zone = session.endTimeZoneIdentifier ?? session.startTimeZoneIdentifier ?? undefined;
+
+  if (end) {
+    return dateFromDayKey(makeDayKey(end, zone));
+  }
+
+  if (!start) {
+    return startOfDay(new Date());
+  }
+
+  return startOfDay(addDays(start, 1));
+}
+
+export function calculateTimeOffset(date: Date | null, timeZone?: string | null) {
+  if (!date) return null;
+  const parts = getParts(date, timeZone);
+  let value = parts.hour + parts.minute / 60;
+  if (value < SLEEP_DATA_BASE_HOUR) {
+    value += 24;
+  }
+  return value - SLEEP_DATA_BASE_HOUR;
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function consistencyScore(values: number[]) {
+  if (values.length === 0) return 0;
+  const mean = average(values) ?? 0;
+  const variance = average(values.map((value) => (value - mean) ** 2)) ?? 0;
+  return clamp(100 - Math.round(Math.sqrt(variance) * 40), 0, 100);
+}
+
+function wrappedMinuteDifference(actual: number, target: number) {
+  const direct = Math.abs(actual - target);
+  return Math.min(direct, 24 * 60 - direct);
+}
+
+function goalDurationHours(optimalSleepMinutes: number, optimalWakeMinutes: number) {
+  let diff = optimalWakeMinutes - optimalSleepMinutes;
+  if (diff <= 0) diff += 24 * 60;
+  return diff / 60;
+}
+
+function recordsFromSessions(
+  sessions: BlockedProfileSession[],
+  optimalSleepMinutes: number,
+  optimalWakeMinutes: number,
+) {
+  const canonical = canonicalSessions(sessions);
+
+  const records: SleepNightRecord[] = canonical
+    .map((session) => {
+      const start = toDate(session.startTime);
+      const end = toDate(session.endTime);
+      if (!start || !end) return null;
+
+      const bedtimeOffset = calculateTimeOffset(start, session.startTimeZoneIdentifier);
+      const wakeOffset = calculateTimeOffset(end, session.endTimeZoneIdentifier);
+      if (bedtimeOffset == null || wakeOffset == null) return null;
+
+      const date = getSessionSleepDate(session);
+      return {
+        date,
+        weekday: date.getDay() + 1,
+        durationHours: sessionDurationSeconds(session) / 3600,
+        bedtimeOffset,
+        wakeOffset,
+        midpointOffset: bedtimeOffset + sessionDurationSeconds(session) / 7200,
+      };
+    })
+    .filter(Boolean) as SleepNightRecord[];
+
+  const targetDurationHours = goalDurationHours(optimalSleepMinutes, optimalWakeMinutes);
+  const targetSleepOffset = calculateTimeOffset(new Date(`2024-01-01T00:00:00`));
+  void targetSleepOffset;
+
+  return {
+    records,
+    targetDurationHours,
+    targetSleepOffset: timeOffsetFromMinutes(optimalSleepMinutes),
+    targetWakeOffset: timeOffsetFromMinutes(optimalWakeMinutes),
+  };
+}
+
+function timeOffsetFromMinutes(minutes: number) {
+  let hours = minutes / 60;
+  if (hours < SLEEP_DATA_BASE_HOUR) hours += 24;
+  return hours - SLEEP_DATA_BASE_HOUR;
+}
+
+export function canonicalSessions(sessions: BlockedProfileSession[]) {
+  const completed = sessions.filter((session) => session.endTime && isValidSession(session));
+  const bucket = new Map<string, BlockedProfileSession>();
+
+  for (const session of completed) {
+    const end = toDate(session.endTime);
+    if (!end) continue;
+    const key = makeDayKey(end, session.endTimeZoneIdentifier ?? session.startTimeZoneIdentifier);
+    const existing = bucket.get(key);
+    if (!existing || sessionDurationSeconds(session) > sessionDurationSeconds(existing)) {
+      bucket.set(key, session);
+    }
+  }
+
+  return [...bucket.values()].sort(
+    (left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime(),
+  );
+}
+
+export function processWeeklySleepData(sessions: BlockedProfileSession[]) {
+  const canonical = canonicalSessions(sessions);
+  if (canonical.length === 0) return [];
+
+  const latest = canonical[canonical.length - 1];
+  const latestDate = getSessionSleepDate(latest);
+  const sessionsByKey = new Map(
+    canonical.map((session) => [makeDayKey(getSessionSleepDate(session)), session] as const),
+  );
+
+  const entries: DailySleepData[] = [];
+  for (let index = 6; index >= 0; index -= 1) {
+    const date = addDays(latestDate, -index);
+    const key = makeDayKey(date);
+    const session = sessionsByKey.get(key);
+    const label = date.toLocaleDateString([], { weekday: "short" });
+    if (!session) {
+      entries.push({
+        dayLabel: label,
+        date,
+        startOffset: 0,
+        endOffset: 0,
+        duration: 0,
+      });
+      continue;
+    }
+
+    const start = toDate(session.startTime);
+    const end = toDate(session.endTime);
+    if (!start || !end) continue;
+
+    entries.push({
+      dayLabel: label,
+      date,
+      startOffset: calculateTimeOffset(start, session.startTimeZoneIdentifier) ?? 0,
+      endOffset: calculateTimeOffset(end, session.endTimeZoneIdentifier) ?? 0,
+      duration: sessionDurationSeconds(session),
+    });
+  }
+
+  return entries;
+}
+
+export function calculateSleepConsistency(data: DailySleepData[]) {
+  return consistencyScore(data.filter((entry) => entry.duration > 0).map((entry) => entry.startOffset));
+}
+
+export function calculateWakeConsistency(data: DailySleepData[]) {
+  return consistencyScore(data.filter((entry) => entry.duration > 0).map((entry) => entry.endOffset));
+}
+
+export function calculateAccuracy(
+  data: DailySleepData[],
+  optimalSleepMinutes: number,
+  optimalWakeMinutes: number,
+) {
+  const active = data.filter((entry) => entry.duration > 0);
+  if (active.length === 0) return 0;
+
+  const targetSleepOffset = timeOffsetFromMinutes(optimalSleepMinutes);
+  const targetWakeOffset = timeOffsetFromMinutes(optimalWakeMinutes);
+
+  const deviations = active.map((entry) => {
+    const bedtimeMinutes = Math.round((entry.startOffset + SLEEP_DATA_BASE_HOUR) * 60) % (24 * 60);
+    const wakeMinutes = Math.round((entry.endOffset + SLEEP_DATA_BASE_HOUR) * 60) % (24 * 60);
+    return (
+      wrappedMinuteDifference(bedtimeMinutes, Math.round((targetSleepOffset + SLEEP_DATA_BASE_HOUR) * 60) % (24 * 60)) +
+      wrappedMinuteDifference(wakeMinutes, Math.round((targetWakeOffset + SLEEP_DATA_BASE_HOUR) * 60) % (24 * 60))
+    ) / 2;
+  });
+
+  const avgDeviationMinutes = average(deviations) ?? 0;
+  const deduction = Math.round((avgDeviationMinutes / 60) * 30);
+  return clamp(100 - deduction, 0, 100);
+}
+
+export function buildSleepMetrics(
+  sessions: BlockedProfileSession[],
+  optimalSleepMinutes: number,
+  optimalWakeMinutes: number,
+) {
+  const model = recordsFromSessions(sessions, optimalSleepMinutes, optimalWakeMinutes);
+  return {
+    ...model,
+    recordsInRange(range: SleepMetricsRange, referenceDate = new Date()) {
+      if (range === "All") return model.records;
+      const days = RANGE_DAYS[range];
+      const threshold = startOfDay(addDays(referenceDate, -(days - 1)));
+      return model.records.filter((record) => record.date >= threshold);
+    },
+    averageDuration(records: SleepNightRecord[]) {
+      return average(records.map((record) => record.durationHours));
+    },
+    medianDuration(records: SleepNightRecord[]) {
+      return median(records.map((record) => record.durationHours));
+    },
+    totalSleepHours(records: SleepNightRecord[]) {
+      return records.reduce((sum, record) => sum + record.durationHours, 0);
+    },
+    longestNight(records: SleepNightRecord[]) {
+      return records.reduce<number | null>((max, record) => {
+        if (max == null || record.durationHours > max) return record.durationHours;
+        return max;
+      }, null);
+    },
+    shortestNight(records: SleepNightRecord[]) {
+      return records.reduce<number | null>((min, record) => {
+        if (record.durationHours <= 0) return min;
+        if (min == null || record.durationHours < min) return record.durationHours;
+        return min;
+      }, null);
+    },
+    trackingCoverage(records: SleepNightRecord[], range: SleepMetricsRange) {
+      const denominator = range === "All" ? Math.max(1, model.records.length) : RANGE_DAYS[range];
+      return Math.round((records.length / denominator) * 100);
+    },
+    goalHitRate(records: SleepNightRecord[], toleranceHours = 0.75) {
+      if (records.length === 0) return 0;
+      const hits = records.filter((record) => Math.abs(record.durationHours - model.targetDurationHours) <= toleranceHours);
+      return Math.round((hits.length / records.length) * 100);
+    },
+    durationTrendPercent(records: SleepNightRecord[], window = 7) {
+      if (records.length < window * 2) return null;
+      const current = records.slice(-window);
+      const previous = records.slice(-(window * 2), -window);
+      const currentAverage = average(current.map((record) => record.durationHours));
+      const previousAverage = average(previous.map((record) => record.durationHours));
+      if (!currentAverage || !previousAverage) return null;
+      return ((currentAverage - previousAverage) / previousAverage) * 100;
+    },
+    sleepConsistencyScore(records: SleepNightRecord[]) {
+      return consistencyScore(records.map((record) => record.bedtimeOffset));
+    },
+    wakeConsistencyScore(records: SleepNightRecord[]) {
+      return consistencyScore(records.map((record) => record.wakeOffset));
+    },
+    scheduleAccuracyScore(records: SleepNightRecord[]) {
+      if (records.length === 0) return 0;
+      const targetSleepOffset = model.targetSleepOffset ?? 0;
+      const targetWakeOffset = model.targetWakeOffset ?? 0;
+      const deviations = records.map((record) => {
+        const bedtimeDeviation = Math.abs(record.bedtimeOffset - targetSleepOffset);
+        const wakeDeviation = Math.abs(record.wakeOffset - targetWakeOffset);
+        return (bedtimeDeviation + wakeDeviation) / 2;
+      });
+      const avgDeviation = average(deviations) ?? 0;
+      return clamp(100 - Math.round(avgDeviation * 25), 0, 100);
+    },
+    movingAverageSeries(records: SleepNightRecord[], window = 7): SleepMovingAveragePoint[] {
+      return records.map((record, index) => {
+        if (index + 1 < window) {
+          return {
+            date: record.date,
+            durationHours: record.durationHours,
+            movingAverageHours: null,
+          };
+        }
+        const slice = records.slice(index - window + 1, index + 1);
+        return {
+          date: record.date,
+          durationHours: record.durationHours,
+          movingAverageHours: average(slice.map((entry) => entry.durationHours)),
+        };
+      });
+    },
+    rollingConsistencySeries(records: SleepNightRecord[], window = 14): SleepConsistencyPoint[] {
+      return records.map((record, index) => {
+        if (index + 1 < window) {
+          return {
+            date: record.date,
+            sleepConsistency: null,
+            wakeConsistency: null,
+            scheduleAccuracy: null,
+          };
+        }
+        const slice = records.slice(index - window + 1, index + 1);
+        return {
+          date: record.date,
+          sleepConsistency: consistencyScore(slice.map((entry) => entry.bedtimeOffset)),
+          wakeConsistency: consistencyScore(slice.map((entry) => entry.wakeOffset)),
+          scheduleAccuracy: this.scheduleAccuracyScore(slice),
+        };
+      });
+    },
+    cumulativeDebtSeries(records: SleepNightRecord[]): SleepDebtPoint[] {
+      let cumulative = 0;
+      return records.map((record) => {
+        cumulative += model.targetDurationHours - record.durationHours;
+        return {
+          date: record.date,
+          cumulativeHours: Number(cumulative.toFixed(2)),
+        };
+      });
+    },
+    weekdayAverages(records: SleepNightRecord[]): SleepWeekdayAverage[] {
+      return [1, 2, 3, 4, 5, 6, 7].map((weekday) => {
+        const slice = records.filter((record) => record.weekday === weekday);
+        const averageHours = average(slice.map((entry) => entry.durationHours)) ?? 0;
+        const reference = slice[0]?.date ?? new Date(2024, 0, weekday);
+        return {
+          weekday,
+          dayName: reference.toLocaleDateString([], { weekday: "short" }),
+          averageHours,
+          nights: slice.length,
+        };
+      });
+    },
+    durationBuckets(records: SleepNightRecord[]): SleepDurationBucket[] {
+      const specs = [
+        { label: "<6h", match: (value: number) => value < 6 },
+        { label: "6-7h", match: (value: number) => value >= 6 && value < 7 },
+        { label: "7-8h", match: (value: number) => value >= 7 && value < 8 },
+        { label: "8-9h", match: (value: number) => value >= 8 && value < 9 },
+        { label: "9h+", match: (value: number) => value >= 9 },
+      ];
+
+      return specs.map((spec) => {
+        const count = records.filter((record) => spec.match(record.durationHours)).length;
+        return {
+          label: spec.label,
+          count,
+          share: records.length === 0 ? 0 : count / records.length,
+        };
+      });
+    },
+    durationTrendsAnalysis(): SleepTrendPeriod[] {
+      return [7, 14, 30, 90].map((days) => {
+        const current = model.records.slice(-days);
+        const previous = model.records.slice(-(days * 2), -days);
+        return {
+          days,
+          averageDuration: average(current.map((record) => record.durationHours)),
+          previousAverageDuration: average(previous.map((record) => record.durationHours)),
+          changePercent:
+            current.length > 0 && previous.length > 0
+              ? (((average(current.map((record) => record.durationHours)) ?? 0) -
+                  (average(previous.map((record) => record.durationHours)) ?? 0)) /
+                  Math.max(0.001, average(previous.map((record) => record.durationHours)) ?? 0.001)) *
+                100
+              : null,
+          sparkline: current.map((record) => record.durationHours),
+        };
+      });
+    },
+  };
+}
+
+const EARLY_MORNING = [
+  "Rise & Shine ☀️",
+  "Morning, Champ! 🏆",
+  "Early Bird Mode 🐦",
+  "Fresh Start! ✨",
+  "Coffee O'Clock ☕",
+];
+
+const MORNING = ["Crushing It! 💪", "You Got This! ⭐", "Carpe Diem! 🌟", "Boss Mode! 😎"];
+const AFTERNOON = ["Good Afternoon! 🌤️", "Still Going! 💪", "Keep Crushing! 🔥", "Power Through! ⚡"];
+const EVENING = ["Good Evening! 🌆", "Wind Down Time 🍃", "Relax Mode 🧘", "Golden Hour ⭐"];
+const NIGHT = ["Good Night 🌙", "Sleep Soon! 💤", "Rest Up! 🛏️", "Dim The Lights! 💡"];
+const HOUR_BEFORE_SLEEP = ["Bedtime Soon! 🛏️", "Wind Down! 🌙", "Get Cozy! 🧸"];
+const HOUR_AFTER_WAKE = ["Awake Champion! 🏆", "Fresh & Ready! 🌟", "Go Time! 🎯"];
+const SHOULD_BE_SLEEPING = ["Why Up? 🤨", "Sleep, Please! 😴", "Go To Sleep! 💤"];
+const CURRENTLY_SLEEPING = ["Sweet Dreams 🌙", "Rest Well 💤", "Dream Big 🌟"];
+
+function pick<T>(values: T[]) {
+  return values[Math.floor(Math.random() * values.length)];
+}
+
+function shouldBeSleepingNow(currentMinutes: number, sleepMinutes: number, wakeMinutes: number) {
+  if (sleepMinutes > wakeMinutes) {
+    return currentMinutes >= sleepMinutes || currentMinutes < wakeMinutes;
+  }
+  return currentMinutes >= sleepMinutes && currentMinutes < wakeMinutes;
+}
+
+export function getSleepGreeting(
+  optimalSleepMinutes: number,
+  optimalWakeMinutes: number,
+  isSleeping: boolean,
+  now = new Date(),
+) {
+  if (isSleeping) {
+    return pick(CURRENTLY_SLEEPING);
+  }
+
+  const currentMinutes = minutesFromDate(now);
+  const minutesBeforeSleep = optimalSleepMinutes - currentMinutes;
+  if (minutesBeforeSleep > 0 && minutesBeforeSleep <= 60) {
+    return pick(HOUR_BEFORE_SLEEP);
+  }
+
+  const minutesAfterWake = currentMinutes - optimalWakeMinutes;
+  if (minutesAfterWake >= 0 && minutesAfterWake <= 60) {
+    return pick(HOUR_AFTER_WAKE);
+  }
+
+  if (shouldBeSleepingNow(currentMinutes, optimalSleepMinutes, optimalWakeMinutes)) {
+    return pick(SHOULD_BE_SLEEPING);
+  }
+
+  const hour = now.getHours();
+  if (hour >= 5 && hour < 9) return pick(EARLY_MORNING);
+  if (hour >= 9 && hour < 12) return pick(MORNING);
+  if (hour >= 12 && hour < 17) return pick(AFTERNOON);
+  if (hour >= 17 && hour < 20) return pick(EVENING);
+  return pick(NIGHT);
+}

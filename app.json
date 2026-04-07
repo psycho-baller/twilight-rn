@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Twilight",
+    "slug": "twilight",
+    "scheme": "twilight",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00D4FF",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-font",
+      "expo-document-picker",
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "studio.orbitlabs.twilight",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A1520",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "studio.orbitlabs.twilight",
+      "buildNumber": "1"
+    },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A1520"
+    }
+  }
+}
