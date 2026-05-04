@@ -403,11 +403,14 @@ export function buildSleepMetrics(
     },
     durationBuckets(records: SleepNightRecord[]): SleepDurationBucket[] {
       const specs = [
-        { label: "<6h", match: (value: number) => value < 6 },
-        { label: "6-7h", match: (value: number) => value >= 6 && value < 7 },
-        { label: "7-8h", match: (value: number) => value >= 7 && value < 8 },
-        { label: "8-9h", match: (value: number) => value >= 8 && value < 9 },
-        { label: "9h+", match: (value: number) => value >= 9 },
+        { label: "<5h", match: (value: number) => value < 5 },
+        { label: "5-5.5h", match: (value: number) => value >= 5 && value < 5.5 },
+        { label: "5.5-6h", match: (value: number) => value >= 5.5 && value < 6 },
+        { label: "6-6.5h", match: (value: number) => value >= 6 && value < 6.5 },
+        { label: "6.5-7h", match: (value: number) => value >= 6.5 && value < 7 },
+        { label: "7-7.5h", match: (value: number) => value >= 7 && value < 7.5 },
+        { label: "7.5-8h", match: (value: number) => value >= 7.5 && value < 8 },
+        { label: "8h+", match: (value: number) => value >= 8 },
       ];
 
       return specs.map((spec) => {

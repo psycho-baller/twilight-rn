@@ -96,9 +96,11 @@ describe("sleep metrics utilities", () => {
     expect(records).toHaveLength(4);
     expect(metrics.averageDuration(records)).toBeCloseTo(7.5, 5);
     expect(metrics.goalHitRate(records)).toBe(75);
-    expect(buckets.find((bucket) => bucket.label === "6-7h")?.count).toBe(1);
-    expect(buckets.find((bucket) => bucket.label === "7-8h")?.count).toBe(1);
-    expect(buckets.find((bucket) => bucket.label === "8-9h")?.count).toBe(2);
+    expect(buckets.find((bucket) => bucket.label === "6-6.5h")?.count).toBe(1);
+    expect(buckets.find((bucket) => bucket.label === "6.5-7h")?.count).toBe(0);
+    expect(buckets.find((bucket) => bucket.label === "7-7.5h")?.count).toBe(0);
+    expect(buckets.find((bucket) => bucket.label === "7.5-8h")?.count).toBe(1);
+    expect(buckets.find((bucket) => bucket.label === "8h+")?.count).toBe(2);
     expect(debt.at(-1)?.cumulativeHours).toBeCloseTo(2, 5);
   });
 
