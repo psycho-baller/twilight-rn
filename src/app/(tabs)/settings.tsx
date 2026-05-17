@@ -17,6 +17,7 @@ import { DEFERRED_FEATURE_MESSAGE, STRATEGIES } from "@/lib/constants";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { getTheme } from "@/lib/theme";
 import { selectDemoMode, selectSleepProfile, useAppStore } from "@/lib/store";
+import type { BlockedProfile } from "@/lib/types";
 
 const weekdayLabels = [
   { value: 1, label: "S" },
@@ -29,20 +30,36 @@ const weekdayLabels = [
 ];
 
 export default function SettingsRoute() {
+  const setLastViewedTab = useAppStore((state) => state.setLastViewedTab);
+  const sleepProfile = useAppStore(selectSleepProfile);
+
+  useEffect(() => {
+    setLastViewedTab("settings").catch(() => undefined);
+  }, [setLastViewedTab]);
+
+  if (!sleepProfile) {
+    return (
+      <AppScreen>
+        <EmptyState
+          title="Settings unavailable"
+          subtitle="Twilight needs a sleep profile before it can save strategy, reminder, and theme settings."
+        />
+      </AppScreen>
+    );
+  }
+
+  return <SettingsForm key={`${sleepProfile.id}-${sleepProfile.updatedAt}`} sleepProfile={sleepProfile} />;
+}
+
+function SettingsForm({ sleepProfile }: { sleepProfile: BlockedProfile }) {
   const appearance = useAppStore((state) => state.appearance);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
   const updateAppearance = useAppStore((state) => state.updateAppearance);
   const updateSleepSettings = useAppStore((state) => state.updateSleepSettings);
   const createOrUpdateProfile = useAppStore((state) => state.createOrUpdateProfile);
-  const setLastViewedTab = useAppStore((state) => state.setLastViewedTab);
   const exitDemoMode = useAppStore((state) => state.exitDemoMode);
-  const sleepProfile = useAppStore(selectSleepProfile);
   const isDemoMode = useAppStore(selectDemoMode);
   const theme = getTheme(appearance);
-
-  useEffect(() => {
-    setLastViewedTab("settings").catch(() => undefined);
-  }, [setLastViewedTab]);
 
   const [name, setName] = useState(sleepProfile?.name ?? "Sleep");
   const [domainsText, setDomainsText] = useState((sleepProfile?.domains ?? []).join("\n"));
@@ -63,37 +80,7 @@ export default function SettingsRoute() {
     [selectedStrategy],
   );
 
-  useEffect(() => {
-    if (!sleepProfile) return;
-    setName(sleepProfile.name);
-    setDomainsText((sleepProfile.domains ?? []).join("\n"));
-    setSelectedStrategy(sleepProfile.blockingStrategyId ?? "ManualBlockingStrategy");
-    setBreaksEnabled(Boolean(sleepProfile.enableBreaks));
-    setBreakMinutes(sleepProfile.breakTimeInMinutes);
-    setStrictMode(Boolean(sleepProfile.enableStrictMode));
-    setAllowMode(Boolean(sleepProfile.enableAllowMode));
-    setAllowDomainsMode(Boolean(sleepProfile.enableAllowModeDomains));
-    setSafariBlocking(Boolean(sleepProfile.enableSafariBlocking));
-    setUseSleepSchedule(Boolean(sleepProfile.useSleepSchedule));
-    setScheduleDays(sleepProfile.schedule?.days ?? []);
-  }, [sleepProfile]);
-
-  if (!sleepProfile) {
-    return (
-      <AppScreen>
-        <EmptyState
-          title="Settings unavailable"
-          subtitle="Twilight needs a sleep profile before it can save strategy, reminder, and theme settings."
-        />
-      </AppScreen>
-    );
-  }
-
   async function saveProfile() {
-    if (!sleepProfile) {
-      return;
-    }
-
     if (windDownReminderEnabled) {
       await ensureNotificationPermission();
     }

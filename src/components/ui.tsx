@@ -38,7 +38,7 @@ export function AppScreen({
     <View style={{ flex: 1 }}>
       <LinearGradient
         colors={[theme.backgroundStart, theme.backgroundEnd]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <Starfield />
       {scroll ? (
@@ -571,7 +571,7 @@ function Starfield() {
   );
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       {stars.map((star) => (
         <View
           key={star.id}

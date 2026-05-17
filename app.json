@@ -6,7 +6,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "web": {
       "output": "static"
     },
@@ -24,7 +23,15 @@
       "expo-document-picker",
       "expo-sqlite",
       "@react-native-community/datetimepicker",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0A1520"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -35,18 +42,12 @@
         "backgroundColor": "#0A1520",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true
     },
     "ios": {
       "bundleIdentifier": "studio.orbitlabs.twilight",
       "buildNumber": "1"
     },
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A1520"
-    }
+    "icon": "./assets/icon.png"
   }
 }

@@ -18,15 +18,19 @@ import { getSleepGreeting, processWeeklySleepData, buildSleepMetrics } from "@/l
 import { getTheme } from "@/lib/theme";
 import { selectSleepProfile, useAppStore } from "@/lib/store";
 
-function useTicker() {
-  const [tick, setTick] = useState(0);
+const initialNow = Date.now();
+
+function useNow() {
+  const [now, setNow] = useState(initialNow);
 
   useEffect(() => {
-    const timer = setInterval(() => setTick((value) => value + 1), 1000);
+    const updateNow = () => setNow(Date.now());
+    updateNow();
+    const timer = setInterval(updateNow, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  return tick;
+  return now;
 }
 
 function computeStreak(dates: Date[]) {
@@ -46,7 +50,7 @@ function computeStreak(dates: Date[]) {
 }
 
 export default function HomeRoute() {
-  const tick = useTicker();
+  const now = useNow();
   const [viewMode, setViewMode] = useState<"Week" | "7-Night Avg">("Week");
   const [greetingSeed, setGreetingSeed] = useState(0);
   const appearance = useAppStore((state) => state.appearance);
@@ -88,7 +92,7 @@ export default function HomeRoute() {
     sleepSettings.optimalSleepMinutes,
     sleepSettings.optimalWakeMinutes,
     Boolean(isSleeping),
-    new Date(Date.now() + greetingSeed),
+    new Date(now + greetingSeed),
   );
 
   const lastSleepSession = profileSessions
@@ -97,7 +101,7 @@ export default function HomeRoute() {
   const currentStreak = computeStreak(metrics.records.map((record) => record.date));
   const durationTrend = metrics.durationTrendPercent(metrics.recordsInRange("30D"));
   const activeDurationSeconds = activeSession
-    ? Math.max(0, Math.floor((Date.now() - new Date(activeSession.startTime).getTime()) / 1000))
+    ? Math.max(0, Math.floor((now - new Date(activeSession.startTime).getTime()) / 1000))
     : 0;
   const activeDuration = activeSession
     ? formatDuration(activeDurationSeconds)
@@ -107,7 +111,7 @@ export default function HomeRoute() {
     <AppScreen>
       <SectionTitle
         title={greeting}
-        subtitle={new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
+        subtitle={new Date(now).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
         trailing={
           <Pressable onPress={() => setGreetingSeed((value) => value + 7_777)}>
             <Ionicons name="sparkles" size={22} color={theme.textSecondary} />
