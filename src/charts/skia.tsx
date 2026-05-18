@@ -634,6 +634,8 @@ export function SleepAlignmentChart({
   const palette = chartPalette(theme);
   const targetScore = 70;
 
+  const [selected, setSelected] = useState<number | null>(null);
+
   const displayPoints = useMemo(() => {
     let previousTrend: number | null = null;
     return series.map((point) => {
@@ -642,17 +644,106 @@ export function SleepAlignmentChart({
       previousTrend = trend;
       return {
         ...point,
-        displayDaily: daily,
-        displayTrend: trend,
+        displayDaily: Math.round(daily),
+        displayTrend: Math.round(trend),
       };
     });
   }, [series, coreOnly]);
 
+  const currentTargetStreak = useMemo(() => {
+    let streak = 0;
+    for (let i = displayPoints.length - 1; i >= 0; i--) {
+      if (displayPoints[i].displayDaily >= targetScore) streak++;
+      else break;
+    }
+    return streak;
+  }, [displayPoints]);
+
+  const bestTargetStreak = useMemo(() => {
+    let current = 0;
+    let best = 0;
+    for (const p of displayPoints) {
+      if (p.displayDaily >= targetScore) {
+        current++;
+        best = Math.max(best, current);
+      } else {
+        current = 0;
+      }
+    }
+    return best;
+  }, [displayPoints]);
+
   const yDomain: [number, number] = [0, 100];
   const yTicks = [0, 25, 50, 70, 100];
 
+  if (displayPoints.length === 0) return null;
+
+  const pointToDisplay = selected != null ? displayPoints[selected] : displayPoints[displayPoints.length - 1];
+  const prevPointIndex = selected != null ? selected - 1 : displayPoints.length - 2;
+  const prevPoint = displayPoints[prevPointIndex];
+  const selectedDailyDelta = prevPoint ? pointToDisplay.displayDaily - prevPoint.displayDaily : 0;
+  
+  const trendDirectionText = pointToDisplay.displayTrend >= (prevPoint?.displayTrend ?? 0) ? "Improving" : "Declining";
+  const trendColor = pointToDisplay.displayTrend >= targetScore ? palette.green : palette.orange;
+
+  const components = [
+    { title: "Duration", score: pointToDisplay.durationScore, tint: palette.cyan },
+    { title: "Consistency", score: pointToDisplay.consistencyScore, tint: palette.orange },
+  ];
+  if (!coreOnly) {
+    components.splice(1, 0, { title: "Timing", score: pointToDisplay.timingScore, tint: palette.green });
+    components.splice(2, 0, { title: "Phase", score: pointToDisplay.phaseScore, tint: palette.indigo });
+  }
+  const weakestComponent = components.reduce((min, c) => c.score < min.score ? c : min, components[0]);
+
+  const MetricBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 }}>
+      <Text style={{ color: theme.textSecondary, fontSize: 13, width: 85 }}>{label}</Text>
+      <View style={{ flex: 1, height: 4, backgroundColor: theme.outline, borderRadius: 2, overflow: "hidden" }}>
+        <View style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: "100%", backgroundColor: color, borderRadius: 2 }} />
+      </View>
+      <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "600", width: 25, textAlign: "right", fontVariant: ["tabular-nums"] }}>{Math.round(value)}</Text>
+    </View>
+  );
+
   return (
-    <ChartCanvas height={245}>
+    <View style={{ gap: 16 }}>
+      <View style={{ flexDirection: "row", gap: 7 }}>
+        <InsightPill 
+          title="DAILY" 
+          value={`${pointToDisplay.displayDaily}`} 
+          subtitle={`${selectedDailyDelta >= 0 ? "+" : ""}${selectedDailyDelta}`} 
+          tint={palette.cyan} 
+        />
+        <InsightPill 
+          title="TREND" 
+          value={`${pointToDisplay.displayTrend}`} 
+          subtitle={trendDirectionText} 
+          tint={trendColor} 
+        />
+        <InsightPill 
+          title="MAIN DRAG" 
+          value={weakestComponent.title.slice(0, 9) + (weakestComponent.title.length > 9 ? "..." : "")} 
+          subtitle={`${Math.round(weakestComponent.score)}`} 
+          tint={weakestComponent.tint} 
+        />
+        <InsightPill 
+          title={`🔥 ${currentTargetStreak}`} 
+          value="" 
+          subtitle={bestTargetStreak > 0 ? `best ${bestTargetStreak}d` : "hit 70+"} 
+          tint={palette.orange} 
+        />
+      </View>
+
+      <ChartCanvas 
+        height={245}
+        onSelect={(x) => {
+          const bounds = chartBounds({ width: 320, height: 245, paddingTop: 10, paddingBottom: 25, paddingLeft: 30, paddingRight: 10 });
+          const slot = bounds.width / Math.max(1, displayPoints.length);
+          const relative = (x - bounds.left) / slot;
+          setSelected(clampChart(Math.floor(relative), 0, Math.max(0, displayPoints.length - 1)));
+        }}
+      >
       {(frame) => {
         const bounds = chartBounds(frame);
         const slot = bounds.width / Math.max(1, displayPoints.length);
@@ -700,6 +791,25 @@ export function SleepAlignmentChart({
                return <Path path={path} color={palette.cyan} style="stroke" strokeWidth={3} />;
             })()}
 
+            {(() => {
+               if (selected == null) return null;
+               const point = displayPoints[selected];
+               const x = bounds.left + slot * selected + slot / 2;
+               const y = linearScale(point.displayTrend, yDomain, [bounds.bottom, bounds.top]);
+               
+               const dashes = [];
+               for (let yDash = bounds.top; yDash < bounds.bottom; yDash += 5) {
+                 dashes.push(<Line key={`vdash-${yDash}`} p1={vec(x, yDash)} p2={vec(x, Math.min(yDash + 2, bounds.bottom))} color="rgba(255,255,255,0.4)" strokeWidth={1} />);
+               }
+
+               return (
+                 <Group>
+                   {dashes}
+                   <Circle cx={x} cy={y} r={6} color="white" />
+                 </Group>
+               );
+            })()}
+
             {displayPoints.map((point, index) => {
               if (index % Math.ceil(displayPoints.length / 4) !== 0 && index !== displayPoints.length - 1) return null;
               const x = bounds.left + slot * index + slot / 2;
@@ -710,6 +820,24 @@ export function SleepAlignmentChart({
         );
       }}
     </ChartCanvas>
+
+    <View style={{ gap: 8, marginTop: 4, paddingHorizontal: 4 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
+          {pointToDisplay.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+        </Text>
+        <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "600" }}>
+          Score {pointToDisplay.displayDaily} <Text style={{ color: theme.textSecondary }}>•</Text>{" "}
+          <Text style={{ color: pointToDisplay.displayDaily >= targetScore ? palette.green : palette.orange }}>
+            {pointToDisplay.displayDaily >= targetScore ? "+" : ""}{pointToDisplay.displayDaily - targetScore} vs target
+          </Text>
+        </Text>
+      </View>
+      {components.map((c) => (
+        <MetricBar key={c.title} label={c.title} value={c.score} color={c.tint} />
+      ))}
+    </View>
+  </View>
   );
 }
 
