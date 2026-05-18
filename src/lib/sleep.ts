@@ -544,8 +544,8 @@ const HOUR_AFTER_WAKE = ["Awake Champion! 🏆", "Fresh & Ready! 🌟", "Go Time
 const SHOULD_BE_SLEEPING = ["Why Up? 🤨", "Sleep, Please! 😴", "Go To Sleep! 💤"];
 const CURRENTLY_SLEEPING = ["Sweet Dreams 🌙", "Rest Well 💤", "Dream Big 🌟"];
 
-function pick<T>(values: T[]) {
-  return values[Math.floor(Math.random() * values.length)];
+function pick<T>(values: T[], seed = 0) {
+  return values[Math.abs(Math.trunc(seed)) % values.length];
 }
 
 function shouldBeSleepingNow(currentMinutes: number, sleepMinutes: number, wakeMinutes: number) {
@@ -560,30 +560,31 @@ export function getSleepGreeting(
   optimalWakeMinutes: number,
   isSleeping: boolean,
   now = new Date(),
+  variantSeed = 0,
 ) {
   if (isSleeping) {
-    return pick(CURRENTLY_SLEEPING);
+    return pick(CURRENTLY_SLEEPING, variantSeed);
   }
 
   const currentMinutes = minutesFromDate(now);
   const minutesBeforeSleep = optimalSleepMinutes - currentMinutes;
   if (minutesBeforeSleep > 0 && minutesBeforeSleep <= 60) {
-    return pick(HOUR_BEFORE_SLEEP);
+    return pick(HOUR_BEFORE_SLEEP, variantSeed);
   }
 
   const minutesAfterWake = currentMinutes - optimalWakeMinutes;
   if (minutesAfterWake >= 0 && minutesAfterWake <= 60) {
-    return pick(HOUR_AFTER_WAKE);
+    return pick(HOUR_AFTER_WAKE, variantSeed);
   }
 
   if (shouldBeSleepingNow(currentMinutes, optimalSleepMinutes, optimalWakeMinutes)) {
-    return pick(SHOULD_BE_SLEEPING);
+    return pick(SHOULD_BE_SLEEPING, variantSeed);
   }
 
   const hour = now.getHours();
-  if (hour >= 5 && hour < 9) return pick(EARLY_MORNING);
-  if (hour >= 9 && hour < 12) return pick(MORNING);
-  if (hour >= 12 && hour < 17) return pick(AFTERNOON);
-  if (hour >= 17 && hour < 20) return pick(EVENING);
-  return pick(NIGHT);
+  if (hour >= 5 && hour < 9) return pick(EARLY_MORNING, variantSeed);
+  if (hour >= 9 && hour < 12) return pick(MORNING, variantSeed);
+  if (hour >= 12 && hour < 17) return pick(AFTERNOON, variantSeed);
+  if (hour >= 17 && hour < 20) return pick(EVENING, variantSeed);
+  return pick(NIGHT, variantSeed);
 }

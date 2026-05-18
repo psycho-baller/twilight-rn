@@ -145,13 +145,14 @@ describe("sleep metrics utilities", () => {
   });
 
   test("getSleepGreeting matches the active state and schedule windows", () => {
-    const randomSpy = jest.spyOn(Math, "random").mockReturnValue(0);
     const atLocalTime = (hour: number, minute = 0) => new Date(2026, 3, 7, hour, minute, 0, 0);
 
     expect(getSleepGreeting(23 * 60, 7 * 60, true, atLocalTime(2))).toBe("Sweet Dreams 🌙");
     expect(getSleepGreeting(22 * 60, 7 * 60, false, atLocalTime(21, 30))).toBe("Bedtime Soon! 🛏️");
     expect(getSleepGreeting(22 * 60, 7 * 60, false, atLocalTime(2))).toBe("Why Up? 🤨");
-
-    randomSpy.mockRestore();
+    expect(getSleepGreeting(22 * 60, 7 * 60, false, atLocalTime(2))).toBe(
+      getSleepGreeting(22 * 60, 7 * 60, false, new Date(2026, 3, 7, 2, 0, 30, 0)),
+    );
+    expect(getSleepGreeting(23 * 60, 7 * 60, true, atLocalTime(2), 1)).toBe("Rest Well 💤");
   });
 });

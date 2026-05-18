@@ -32,15 +32,15 @@ const initialNow = Date.now();
 type HomeMode = "Week" | "7-Night Avg" | "Score" | "Core";
 type HistoryRange = "90D" | "All";
 
-function useNow() {
+function useNow(refreshIntervalMs: number) {
   const [now, setNow] = useState(initialNow);
 
   useEffect(() => {
     const updateNow = () => setNow(Date.now());
     updateNow();
-    const timer = setInterval(updateNow, 1000);
+    const timer = setInterval(updateNow, refreshIntervalMs);
     return () => clearInterval(timer);
-  }, []);
+  }, [refreshIntervalMs]);
 
   return now;
 }
@@ -62,13 +62,13 @@ function computeStreak(dates: Date[]) {
 }
 
 export default function HomeRoute() {
-  const now = useNow();
   const [viewMode, setViewMode] = useState<HomeMode>("Week");
   const [historyRange, setHistoryRange] = useState<HistoryRange>("90D");
   const [greetingSeed, setGreetingSeed] = useState(0);
   const sessions = useAppStore((state) => state.sessions);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
+  const now = useNow(activeSessionId ? 1000 : 60_000);
   const startProfile = useAppStore((state) => state.startProfile);
   const stopActiveSession = useAppStore((state) => state.stopActiveSession);
   const toggleBreak = useAppStore((state) => state.toggleBreak);
@@ -116,7 +116,8 @@ export default function HomeRoute() {
     sleepSettings.optimalSleepMinutes,
     sleepSettings.optimalWakeMinutes,
     Boolean(isSleeping),
-    new Date(now + greetingSeed),
+    new Date(now),
+    greetingSeed,
   );
 
   return (
