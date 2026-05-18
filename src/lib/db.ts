@@ -81,16 +81,55 @@ async function migrate(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
 
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT,
-      payload TEXT NOT NULL
-    );
+    -- Legacy Concepts Removal (Migration)
+    -- If the sessions table exists and has blocked_profile_id, we need to drop the constraint.
+    -- SQLite doesn't allow dropping NOT NULL easily, so we handle it by checking columns.
+  `);
 
-    CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time DESC);
-    CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(end_time);
+  const tableInfo = await db.getAllAsync<{ name: string; notnull: number }>(
+    "PRAGMA table_info(sessions)",
+  );
 
+  const hasBlockedProfileId = tableInfo.some((col) => col.name === "blocked_profile_id");
+  const isNotNull = tableInfo.find((col) => col.name === "blocked_profile_id")?.notnull === 1;
+
+  if (hasBlockedProfileId && isNotNull) {
+    // Perform a safe migration to remove the NOT NULL constraint from blocked_profile_id
+    // and eventually we'll just stop using it.
+    await db.execAsync(`
+      CREATE TABLE sessions_backup (
+        id TEXT PRIMARY KEY NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        payload TEXT NOT NULL
+      );
+      
+      INSERT INTO sessions_backup (id, start_time, end_time, payload)
+      SELECT id, start_time, end_time, payload FROM sessions;
+      
+      DROP TABLE sessions;
+      
+      ALTER TABLE sessions_backup RENAME TO sessions;
+      
+      CREATE INDEX idx_sessions_start ON sessions(start_time DESC);
+      CREATE INDEX idx_sessions_active ON sessions(end_time);
+    `);
+  } else {
+    // Standard table creation (if it doesn't exist)
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        payload TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time DESC);
+      CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(end_time);
+    `);
+  }
+
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS sleep_settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL

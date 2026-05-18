@@ -357,6 +357,14 @@ export default function SettingsRoute() {
         </SettingsRowGroup>
       </GlassPanel>
 
+      <GlassPanel style={{ gap: 12 }}>
+        <SectionHeader title="Development" subtitle="Debug and exploration tools." compact />
+        <TwilightButton
+          title="Open Onboarding"
+          onPress={() => router.push("/onboarding")}
+        />
+      </GlassPanel>
+
       {isDemoMode ? (
         <GlassPanel style={{ gap: 12 }}>
           <SectionHeader title="Demo Data" subtitle="Exit demo mode and restore your data." compact />
