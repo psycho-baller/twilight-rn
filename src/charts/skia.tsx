@@ -470,14 +470,204 @@ export function WeeklySleepWindowChart({
 }
 
 export function DurationMomentumChart({ series, targetHours }: { series: SleepMovingAveragePoint[]; targetHours: number }) {
-  const data = series
-    .filter((point) => point.movingAverageHours != null)
-    .map((point) => ({
-      label: point.date.toLocaleDateString([], { month: "short", day: "numeric" }),
-      value: point.movingAverageHours ?? 0,
-      helper: `${formatHours(point.durationHours)} nightly`,
-    }));
-  return <LineChart data={data} target={targetHours} yTicks={[6, 7, 8]} suffix="h" />;
+  const { theme } = useTwilightTheme();
+  const palette = chartPalette(theme);
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const displayPoints = useMemo(() => series.filter((p) => p.movingAverageHours != null), [series]);
+
+  if (displayPoints.length === 0) return null;
+
+  const pointToDisplay = selected != null ? displayPoints[selected] : displayPoints[displayPoints.length - 1];
+  const selectedIndex = displayPoints.findIndex(p => p.date.getTime() === pointToDisplay.date.getTime());
+  const point7dAgo = selectedIndex >= 7 ? displayPoints[selectedIndex - 7] : null;
+
+  const currentAvg = pointToDisplay.movingAverageHours!;
+  const prevAvg = point7dAgo?.movingAverageHours ?? currentAvg;
+  
+  const delta7d = currentAvg - prevAvg;
+  const vsTarget = currentAvg - targetHours;
+
+  const minRange = Math.min(...displayPoints.map(p => p.movingAverageHours!));
+  const maxRange = Math.max(...displayPoints.map(p => p.movingAverageHours!));
+
+  const formatSignedHours = (val: number) => {
+    const sign = val > 0 ? "+" : "";
+    return `${sign}${val.toFixed(1)}h`;
+  };
+
+  const deltaColor = delta7d > 0 ? palette.green : (delta7d < 0 ? palette.orange : theme.textSecondary);
+  const targetColor = vsTarget >= 0 ? palette.green : palette.orange;
+
+  const yDomain: [number, number] = [
+    Math.min(targetHours - 0.5, Math.floor(minRange * 2) / 2),
+    Math.max(targetHours + 0.5, Math.ceil(maxRange * 2) / 2)
+  ];
+  const yTicks = [];
+  for (let i = yDomain[0]; i <= yDomain[1]; i += 0.5) yTicks.push(i);
+
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={{ flexDirection: "row", gap: 7 }}>
+        <InsightPill 
+          title="VS 7D AGO" 
+          value={formatSignedHours(delta7d)} 
+          subtitle={Math.abs(delta7d) < 0.1 ? "Stable" : (delta7d > 0 ? "Improving" : "Declining")} 
+          tint={deltaColor} 
+        />
+        <InsightPill 
+          title="VS TARGET" 
+          value={formatSignedHours(vsTarget)} 
+          subtitle={vsTarget >= 0 ? "Above target" : "Below target"} 
+          tint={targetColor} 
+        />
+        <InsightPill 
+          title="RANGE" 
+          value={`${minRange.toFixed(1)}-${maxRange.toFixed(1)}h`} 
+          subtitle="selected span" 
+          tint={palette.cyan} 
+        />
+      </View>
+
+      <ChartCanvas 
+        height={245}
+        onSelect={(x) => {
+          const bounds = chartBounds({ width: 320, height: 245, paddingTop: 10, paddingBottom: 25, paddingLeft: 30, paddingRight: 10 });
+          const slot = bounds.width / Math.max(1, displayPoints.length);
+          const relative = (x - bounds.left) / slot;
+          setSelected(clampChart(Math.floor(relative), 0, Math.max(0, displayPoints.length - 1)));
+        }}
+      >
+        {(frame) => {
+          const bounds = chartBounds(frame);
+          const slot = bounds.width / Math.max(1, displayPoints.length);
+          const targetY = linearScale(targetHours, yDomain, [bounds.bottom, bounds.top]);
+
+          return (
+            <Group>
+              <AxisGrid frame={frame} yTicks={yTicks} yDomain={yDomain} suffix="h" />
+
+              {/* Target rule mark */}
+              {(() => {
+                 const dashes = [];
+                 for (let i = bounds.left; i < bounds.right; i += 8) {
+                   dashes.push(<Line key={`target-dash-${i}`} p1={vec(i, targetY)} p2={vec(Math.min(i + 4, bounds.right), targetY)} color="rgba(255, 255, 255, 0.4)" strokeWidth={1.2} />);
+                 }
+                 return <Group>{dashes}</Group>;
+              })()}
+
+              {/* Area Fill */}
+              {(() => {
+                const areaPath = Skia.Path.Make();
+                displayPoints.forEach((point, index) => {
+                  const x = bounds.left + slot * index + slot / 2;
+                  const y = linearScale(point.movingAverageHours!, yDomain, [bounds.bottom, bounds.top]);
+                  if (index === 0) {
+                    areaPath.moveTo(x, targetY);
+                    areaPath.lineTo(x, y);
+                  } else {
+                    areaPath.lineTo(x, y);
+                  }
+                });
+                const lastX = bounds.left + slot * (displayPoints.length - 1) + slot / 2;
+                areaPath.lineTo(lastX, targetY);
+                areaPath.close();
+                
+                const ratio = Math.max(0, Math.min(1, (targetY - bounds.top) / bounds.height));
+                
+                return (
+                  <Path path={areaPath}>
+                    <LinearGradient
+                      start={vec(0, bounds.top)}
+                      end={vec(0, bounds.bottom)}
+                      colors={[
+                        "rgba(52, 199, 89, 0.25)",
+                        "rgba(52, 199, 89, 0.25)",
+                        "rgba(255, 149, 0, 0.25)",
+                        "rgba(255, 149, 0, 0.25)"
+                      ]}
+                      positions={[0, ratio, ratio, 1]}
+                    />
+                  </Path>
+                );
+              })()}
+
+              {/* Trend Line */}
+              {(() => {
+                const linePath = Skia.Path.Make();
+                displayPoints.forEach((point, index) => {
+                  const x = bounds.left + slot * index + slot / 2;
+                  const y = linearScale(point.movingAverageHours!, yDomain, [bounds.bottom, bounds.top]);
+                  if (index === 0) linePath.moveTo(x, y);
+                  else linePath.lineTo(x, y);
+                });
+                return <Path path={linePath} color={palette.cyan} style="stroke" strokeWidth={3} />;
+              })()}
+
+              {/* Selected Point Marker */}
+              {(() => {
+                 if (selected == null) return null;
+                 const point = displayPoints[selected];
+                 const x = bounds.left + slot * selected + slot / 2;
+                 const y = linearScale(point.movingAverageHours!, yDomain, [bounds.bottom, bounds.top]);
+                 
+                 const dashes = [];
+                 for (let yDash = bounds.top; yDash < bounds.bottom; yDash += 5) {
+                   dashes.push(<Line key={`vdash-${yDash}`} p1={vec(x, yDash)} p2={vec(x, Math.min(yDash + 2, bounds.bottom))} color="rgba(255,255,255,0.4)" strokeWidth={1} />);
+                 }
+
+                 return (
+                   <Group>
+                     {dashes}
+                     <Circle cx={x} cy={y} r={6} color="white" />
+                   </Group>
+                 );
+              })()}
+
+              {/* X Axis Labels */}
+              {displayPoints.map((point, index) => {
+                if (index % Math.ceil(displayPoints.length / 4) !== 0 && index !== displayPoints.length - 1) return null;
+                const x = bounds.left + slot * index + slot / 2;
+                const label = point.date.toLocaleDateString([], { month: "short", day: "numeric" });
+                return <SkiaText key={`label-${index}`} text={label} x={x - 15} y={frame.height - 9} font={font11} color={palette.label} />;
+              })}
+            </Group>
+          );
+        }}
+      </ChartCanvas>
+
+      <View style={{ marginTop: 4, paddingHorizontal: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.green }} />
+            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Above Target</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.orange }} />
+            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Below Target</Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
+              {pointToDisplay.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+              {formatSignedHours(delta7d)} vs 7d ago
+            </Text>
+          </View>
+          
+          <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "600", textAlign: "right" }}>
+            Avg {currentAvg.toFixed(1)}h <Text style={{ color: theme.textSecondary }}>•</Text>{" "}
+            <Text style={{ color: targetColor }}>
+              {formatSignedHours(vsTarget)} vs target
+            </Text>
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 export function MovingAverageChart(props: { series: SleepMovingAveragePoint[]; targetHours: number }) {
