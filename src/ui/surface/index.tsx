@@ -48,8 +48,10 @@ export function NativeScreen({
   contentStyle?: ViewStyle;
 }) {
   const insets = useSafeAreaInsets();
-  const topPadding = Math.max(insets.top + 10, 24);
-  const bottomPadding = Math.max(insets.bottom + 96, 116);
+  const scrollTopPadding = process.env.EXPO_OS === "ios" ? 10 : Math.max(insets.top + 8, 20);
+  const scrollBottomPadding = process.env.EXPO_OS === "ios" ? 24 : Math.max(insets.bottom + 96, 116);
+  const fixedTopPadding = Math.max(insets.top + 10, 24);
+  const fixedBottomPadding = Math.max(insets.bottom + 16, 24);
 
   return (
     <View style={{ flex: 1 }}>
@@ -62,8 +64,8 @@ export function NativeScreen({
           contentContainerStyle={[
             {
               paddingHorizontal: 16,
-              paddingTop: topPadding,
-              paddingBottom: bottomPadding,
+              paddingTop: scrollTopPadding,
+              paddingBottom: scrollBottomPadding,
               gap: 16,
             },
             contentStyle,
@@ -77,8 +79,8 @@ export function NativeScreen({
             {
               flex: 1,
               paddingHorizontal: 16,
-              paddingTop: topPadding,
-              paddingBottom: Math.max(insets.bottom + 16, 24),
+              paddingTop: fixedTopPadding,
+              paddingBottom: fixedBottomPadding,
             },
             contentStyle,
           ]}

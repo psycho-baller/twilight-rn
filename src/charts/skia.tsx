@@ -49,25 +49,31 @@ const font12 = matchFont({ fontSize: 12, fontWeight: "600" });
 const font13 = matchFont({ fontSize: 13, fontWeight: "700" });
 
 function makeLinePath(points: { x: number; y: number }[]) {
-  const path = Skia.Path.Make();
+  const builder = Skia.PathBuilder.Make();
   points.forEach((point, index) => {
     if (index === 0) {
-      path.moveTo(point.x, point.y);
+      builder.moveTo(point.x, point.y);
     } else {
-      path.lineTo(point.x, point.y);
+      builder.lineTo(point.x, point.y);
     }
   });
-  return path;
+  return builder.build();
 }
 
 function makeAreaPath(points: { x: number; y: number }[], bottom: number) {
-  const path = makeLinePath(points);
-  if (points.length > 0) {
-    path.lineTo(points[points.length - 1].x, bottom);
-    path.lineTo(points[0].x, bottom);
-    path.close();
-  }
-  return path;
+  if (points.length === 0) return Skia.Path.Make();
+  const builder = Skia.PathBuilder.Make();
+  points.forEach((point, index) => {
+    if (index === 0) {
+      builder.moveTo(point.x, point.y);
+    } else {
+      builder.lineTo(point.x, point.y);
+    }
+  });
+  builder.lineTo(points[points.length - 1].x, bottom);
+  builder.lineTo(points[0].x, bottom);
+  builder.close();
+  return builder.build();
 }
 
 function ChartCanvas({
@@ -541,9 +547,9 @@ export function SleepWindowDialChart({
   const sleepAngle = (sleepMinutes / (24 * 60)) * 360 - 90;
   const sweep = durationMinutes / (24 * 60) * 360;
   const arcPath = useMemo(() => {
-    const path = Skia.Path.Make();
-    path.addArc(rect(center - radius, center - radius, radius * 2, radius * 2), sleepAngle, sweep);
-    return path;
+    return Skia.PathBuilder.Make()
+      .addArc(rect(center - radius, center - radius, radius * 2, radius * 2), sleepAngle, sweep)
+      .build();
   }, [center, radius, sleepAngle, sweep]);
   const knob = (minutes: number) => {
     const angle = (minutes / (24 * 60)) * Math.PI * 2 - Math.PI / 2;

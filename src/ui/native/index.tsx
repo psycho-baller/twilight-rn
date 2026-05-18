@@ -1,14 +1,22 @@
 import {
   BottomSheet as ExpoBottomSheet,
   Button as ExpoButton,
+  Column as ExpoColumn,
   FieldGroup as ExpoFieldGroup,
+  Host,
+  Row as ExpoRow,
+  Text as ExpoText,
   Switch as ExpoSwitch,
   TextInput as ExpoTextInput,
   useNativeState,
 } from "@expo/ui";
-import { Text, View, type ViewStyle } from "react-native";
+import { View, type ViewStyle } from "react-native";
 
 import { useTwilightTheme } from "@/ui/surface";
+
+// We use Host to wrap SwiftUI trees so they can be embedded in React Native.
+// Inside a hosted tree (like NativeFieldGroup), we use ExpoRow/ExpoColumn/ExpoText 
+// to stay in the native hierarchy and avoid dropping children.
 
 export function NativeFieldGroup({
   children,
@@ -18,9 +26,9 @@ export function NativeFieldGroup({
   style?: ViewStyle;
 }) {
   return (
-    <View style={style}>
+    <Host style={style} matchContents>
       <ExpoFieldGroup style={{ backgroundColor: "transparent" }}>{children}</ExpoFieldGroup>
-    </View>
+    </Host>
   );
 }
 
@@ -39,7 +47,7 @@ export function NativeFieldSection({
       {children}
       {footer ? (
         <ExpoFieldGroup.SectionFooter>
-          <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 17 }}>{footer}</Text>
+          <ExpoText style={{ color: theme.textSecondary, fontSize: 12 }}>{footer}</ExpoText>
         </ExpoFieldGroup.SectionFooter>
       ) : null}
     </ExpoFieldGroup.Section>
@@ -50,26 +58,34 @@ export function NativeRow({
   title,
   subtitle,
   trailing,
+  onPress,
 }: {
   title: string;
   subtitle?: string;
   trailing?: React.ReactNode;
+  onPress?: () => void;
 }) {
   const { theme } = useTwilightTheme();
+  // We wrap in Host to ensure it can be used both inside and outside other hosted components.
+  // matchContents ensures it doesn't take up more space than its native content needs.
   return (
-    <View style={{ minHeight: 54, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 }}>
-      <View style={{ flex: 1, gap: 3 }}>
-        <Text selectable style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "700" }}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text selectable style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 17 }}>
-            {subtitle}
-          </Text>
+    <Host matchContents>
+      <ExpoRow alignment="center" onPress={onPress} style={{ paddingVertical: 8 }}>
+        <ExpoColumn spacing={3} style={{ flex: 1, paddingRight: 8 }}>
+          <ExpoText style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "700" }}>
+            {title}
+          </ExpoText>
+          {subtitle ? (
+            <ExpoText style={{ color: theme.textSecondary, fontSize: 12 }}>
+              {subtitle}
+            </ExpoText>
+          ) : null}
+        </ExpoColumn>
+        {trailing ? (
+          <Host matchContents>{trailing}</Host>
         ) : null}
-      </View>
-      {trailing}
-    </View>
+      </ExpoRow>
+    </Host>
   );
 }
 
@@ -106,7 +122,11 @@ export function NativeActionButton({
   variant?: "filled" | "outlined" | "text";
   disabled?: boolean;
 }) {
-  return <ExpoButton label={title} onPress={onPress} variant={variant} disabled={disabled} />;
+  return (
+    <Host matchContents>
+      <ExpoButton label={title} onPress={onPress} variant={variant} disabled={disabled} />
+    </Host>
+  );
 }
 
 export function NativeTextField({
@@ -156,16 +176,18 @@ export function NativeSegmentedControl<T extends string>({
         const selected = option === value;
         return (
           <View key={option} style={{ flex: 1 }}>
-            <ExpoButton
-              label={option}
-              variant={selected ? "filled" : "outlined"}
-              onPress={() => onChange(option)}
-              style={{
-                height: 34,
-                borderRadius: 16,
-                backgroundColor: selected ? theme.accent : "transparent",
-              }}
-            />
+            <Host matchContents>
+              <ExpoButton
+                label={option}
+                variant={selected ? "filled" : "outlined"}
+                onPress={() => onChange(option)}
+                style={{
+                  height: 34,
+                  borderRadius: 16,
+                  backgroundColor: selected ? theme.accent : "transparent",
+                }}
+              />
+            </Host>
           </View>
         );
       })}
@@ -225,9 +247,11 @@ export function NativeBottomSheet({
   onDismiss: () => void;
 }) {
   return (
-    <ExpoBottomSheet isPresented={isPresented} onDismiss={onDismiss} showDragIndicator>
-      {children}
-    </ExpoBottomSheet>
+    <Host>
+      <ExpoBottomSheet isPresented={isPresented} onDismiss={onDismiss} showDragIndicator>
+        {children}
+      </ExpoBottomSheet>
+    </Host>
   );
 }
 

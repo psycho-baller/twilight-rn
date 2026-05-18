@@ -6,9 +6,12 @@ import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { enableScreens } from "react-native-screens";
 
 import { getTheme } from "@/lib/theme";
 import { useAppStore } from "@/lib/store";
+
+enableScreens(true);
 
 function RootContent() {
   const ready = useAppStore((state) => state.ready);

@@ -1,3 +1,4 @@
+import { Host } from "@expo/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -260,38 +261,40 @@ function SettingsForm({ sleepProfile }: { sleepProfile: BlockedProfile }) {
         <NativeFieldGroup>
           <NativeFieldSection title="Sleep schedule" footer="Schedule settings are saved for parity. Android enforcement is phase 2.">
             <NativeSwitchRow title="Use sleep schedule" value={useSleepSchedule} onValueChange={setUseSleepSchedule} />
-            <View style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 10 }}>
-              <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>ACTIVE DAYS</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {weekdayLabels.map((day) => {
-                  const active = scheduleDays.includes(day.value);
-                  return (
-                    <Pressable
-                      key={`${day.value}-${day.label}`}
-                      onPress={() =>
-                        setScheduleDays((current) =>
-                          current.includes(day.value)
-                            ? current.filter((item) => item !== day.value)
-                            : [...current, day.value].sort((left, right) => left - right),
-                        )
-                      }
-                      style={{
-                        height: 42,
-                        width: 42,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: 21,
-                        borderWidth: 1,
-                        borderColor: active ? theme.accent : theme.outline,
-                        backgroundColor: active ? theme.accent : theme.cardMuted,
-                      }}
-                    >
-                      <Text style={{ color: active ? "#06131B" : theme.textPrimary, fontSize: 14, fontWeight: "900" }}>{day.label}</Text>
-                    </Pressable>
-                  );
-                })}
+            <Host matchContents>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 10 }}>
+                <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>ACTIVE DAYS</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {weekdayLabels.map((day) => {
+                    const active = scheduleDays.includes(day.value);
+                    return (
+                      <Pressable
+                        key={`${day.value}-${day.label}`}
+                        onPress={() =>
+                          setScheduleDays((current) =>
+                            current.includes(day.value)
+                              ? current.filter((item) => item !== day.value)
+                              : [...current, day.value].sort((left, right) => left - right),
+                          )
+                        }
+                        style={{
+                          height: 42,
+                          width: 42,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 21,
+                          borderWidth: 1,
+                          borderColor: active ? theme.accent : theme.outline,
+                          backgroundColor: active ? theme.accent : theme.cardMuted,
+                        }}
+                      >
+                        <Text style={{ color: active ? "#06131B" : theme.textPrimary, fontSize: 14, fontWeight: "900" }}>{day.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
+            </Host>
           </NativeFieldSection>
         </NativeFieldGroup>
       </GlassPanel>

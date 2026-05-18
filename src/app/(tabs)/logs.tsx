@@ -1,3 +1,4 @@
+import { Host } from "@expo/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo } from "react";
@@ -85,46 +86,48 @@ export default function LogsRoute() {
                 const end = new Date(session.endTime!);
                 const duration = formatDuration((end.getTime() - start.getTime()) / 1000);
                 return (
-                  <View key={session.id} style={{ paddingHorizontal: 10 }}>
-                    <Pressable
-                      onPress={() =>
-                        router.push(`/modals/session-editor?profileId=${sleepProfile.id}&sessionId=${session.id}`)
-                      }
-                      style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
-                    >
-                      <NativeRow
-                        title={formatDay(end)}
-                        subtitle={`${formatTime(start)} -> ${formatTime(end)} · ${session.tag}`}
-                        trailing={
-                          <View style={{ alignItems: "flex-end", gap: 5 }}>
-                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>
-                              {duration}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-                          </View>
-                        }
-                      />
-                    </Pressable>
-                    <View style={{ flexDirection: "row", gap: 8, paddingBottom: 10 }}>
-                      <TwilightButton
-                        title="Edit"
-                        subtle
-                        style={{ flex: 1, minHeight: 38, borderRadius: 14, paddingVertical: 8 }}
-                        textStyle={{ fontSize: 13 }}
+                  <Host key={session.id} matchContents>
+                    <View style={{ paddingHorizontal: 10 }}>
+                      <Pressable
                         onPress={() =>
                           router.push(`/modals/session-editor?profileId=${sleepProfile.id}&sessionId=${session.id}`)
                         }
-                      />
-                      <TwilightButton
-                        title="Delete"
-                        subtle
-                        danger
-                        style={{ flex: 1, minHeight: 38, borderRadius: 14, paddingVertical: 8 }}
-                        textStyle={{ fontSize: 13 }}
-                        onPress={() => void removeSleepLog(session.id)}
-                      />
+                        style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
+                      >
+                        <NativeRow
+                          title={formatDay(end)}
+                          subtitle={`${formatTime(start)} -> ${formatTime(end)} · ${session.tag}`}
+                          trailing={
+                            <View style={{ alignItems: "flex-end", gap: 5 }}>
+                              <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] }}>
+                                {duration}
+                              </Text>
+                              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+                            </View>
+                          }
+                        />
+                      </Pressable>
+                      <View style={{ flexDirection: "row", gap: 8, paddingBottom: 10 }}>
+                        <TwilightButton
+                          title="Edit"
+                          subtle
+                          style={{ flex: 1, minHeight: 38, borderRadius: 14, paddingVertical: 8 }}
+                          textStyle={{ fontSize: 13 }}
+                          onPress={() =>
+                            router.push(`/modals/session-editor?profileId=${sleepProfile.id}&sessionId=${session.id}`)
+                          }
+                        />
+                        <TwilightButton
+                          title="Delete"
+                          subtle
+                          danger
+                          style={{ flex: 1, minHeight: 38, borderRadius: 14, paddingVertical: 8 }}
+                          textStyle={{ fontSize: 13 }}
+                          onPress={() => void removeSleepLog(session.id)}
+                        />
+                      </View>
                     </View>
-                  </View>
+                  </Host>
                 );
               })}
             </NativeFieldSection>
