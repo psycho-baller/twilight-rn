@@ -37,7 +37,7 @@
       "typedRoutes": true
     },
     "android": {
-      "package": "studio.orbitlabs.twilight",
+      "package": "studio.orbitlabs.twilight.rn",
       "adaptiveIcon": {
         "backgroundColor": "#0A1520",
         "foregroundImage": "./assets/adaptive-icon.png"
@@ -45,7 +45,7 @@
       "predictiveBackGestureEnabled": true
     },
     "ios": {
-      "bundleIdentifier": "studio.orbitlabs.twilight",
+      "bundleIdentifier": "studio.orbitlabs.twilight.rn",
       "buildNumber": "1"
     },
     "icon": "./assets/icon.png"
