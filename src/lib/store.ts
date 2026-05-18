@@ -12,7 +12,6 @@ import {
   deleteSession,
   getHydratedState,
   getProfiles,
-  getSessions,
   makeProfile,
   makeSession,
   setAppState,
@@ -25,7 +24,6 @@ import {
 import { importDemoData, exitDemoData, isDemoProfile } from "@/lib/demo";
 import { exportSessionsCsv, exportSessionsMarkdown } from "@/lib/exporters";
 import {
-  ensureNotificationPermission,
   scheduleBreakReminder,
   scheduleProfileReminder,
   scheduleWindDownReminder,
@@ -36,7 +34,6 @@ import type {
   BlockedProfile,
   BlockedProfileSession,
   BlockingStrategyId,
-  DemoRestoreState,
   EmergencyState,
   HydratedAppState,
   SleepSettings,

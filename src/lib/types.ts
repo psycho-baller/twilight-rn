@@ -141,8 +141,8 @@ export type ArchivePayload = {
     themeMode: string;
     colorPalette: string;
   };
-  profiles: Array<Record<string, unknown>>;
-  sessions: Array<Record<string, unknown>>;
+  profiles: Record<string, unknown>[];
+  sessions: Record<string, unknown>[];
   sharedState: {
     activeSharedSession: SessionSnapshot | null;
     completedScheduleSessions: SessionSnapshot[];
@@ -228,6 +228,31 @@ export type SleepTrendPeriod = {
   previousAverageDuration: number | null;
   changePercent: number | null;
   sparkline: number[];
+};
+
+export type SleepAlignmentScorePoint = {
+  date: Date;
+  dailyScore: number;
+  trendScore: number;
+  coreScore: number;
+  durationScore: number;
+  timingScore: number;
+  phaseScore: number;
+  consistencyScore: number;
+};
+
+export type SleepTimingPoint = {
+  date: Date;
+  bedtimeOffset: number;
+  wakeOffset: number;
+  midpointOffset: number;
+  durationHours: number;
+};
+
+export type SleepSocialJetlag = {
+  weekdayMidpoint: number | null;
+  weekendMidpoint: number | null;
+  deltaHours: number | null;
 };
 
 export type HydratedAppState = {

@@ -38,7 +38,9 @@ npm install
 npm test -- --runInBand
 npx expo-doctor
 npx expo export --platform android
+npm run ios
 npm run android
+npm start
 ```
 
 For device work, use a development build rather than Expo Go.

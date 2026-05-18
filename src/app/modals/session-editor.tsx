@@ -1,20 +1,21 @@
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Text, TextInput } from "react-native";
 
-import {
-  AppScreen,
-  GlassCard,
-  InputRow,
-  PrimaryButton,
-  SectionTitle,
-  SessionTimelineCard,
-  SleepWindowDial,
-} from "@/components/ui";
-import { minutesFromDate, startOfDay, toMinutes } from "@/lib/format";
-import { getTheme } from "@/lib/theme";
+import { SleepWindowDialChart } from "@/charts";
+import { formatClock, formatDay, formatDurationLong, minutesFromDate, startOfDay } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import {
+  GlassPanel,
+  MetricCard,
+  MetricGrid,
+  NativeScreen,
+  SectionHeader,
+  TwilightButton,
+  chartPalette,
+  useTwilightTheme,
+} from "@/ui/surface";
 
 function applyMinutesToDate(baseDate: Date, totalMinutes: number) {
   const next = new Date(baseDate);
@@ -24,11 +25,11 @@ function applyMinutesToDate(baseDate: Date, totalMinutes: number) {
 
 export default function SessionEditorModal() {
   const { profileId, sessionId } = useLocalSearchParams<{ profileId: string; sessionId?: string }>();
-  const appearance = useAppStore((state) => state.appearance);
   const sessions = useAppStore((state) => state.sessions);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
   const upsertSleepLog = useAppStore((state) => state.upsertSleepLog);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
+  const palette = chartPalette(theme);
 
   const existing = useMemo(
     () => sessions.find((session) => session.id === sessionId),
@@ -59,6 +60,7 @@ export default function SessionEditorModal() {
   }, [sessionDay, sleepMinutes]);
 
   const wakeDate = useMemo(() => applyMinutesToDate(sessionDay, wakeMinutes), [sessionDay, wakeMinutes]);
+  const durationSeconds = Math.max(0, (wakeDate.getTime() - sleepDate.getTime()) / 1000);
   const averageGoalDeviationMinutes = Math.round(
     (Math.min(Math.abs(sleepMinutes - sleepSettings.optimalSleepMinutes), 24 * 60 - Math.abs(sleepMinutes - sleepSettings.optimalSleepMinutes)) +
       Math.min(Math.abs(wakeMinutes - sleepSettings.optimalWakeMinutes), 24 * 60 - Math.abs(wakeMinutes - sleepSettings.optimalWakeMinutes))) /
@@ -88,54 +90,64 @@ export default function SessionEditorModal() {
   }
 
   return (
-    <AppScreen>
-      <SectionTitle
+    <NativeScreen>
+      <SectionHeader
         title={existing ? "Edit Log" : "Log Sleep"}
-        subtitle="Wake day drives the log’s calendar day, matching the iOS app’s sleep semantics."
+        subtitle="Wake day drives the calendar day, matching Twilight’s iOS sleep semantics."
       />
 
-      <GlassCard>
-        <View className="gap-4">
-          <PrimaryButton
-            title={`Wake day: ${sessionDay.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`}
-            subtle
-            onPress={() => setShowDatePicker(true)}
-          />
-          {showDatePicker ? (
-            <DateTimePicker
-              value={sessionDay}
-              mode="date"
-              onChange={onDateChange}
-            />
-          ) : null}
-          <SessionTimelineCard bedtime={sleepDate} wake={wakeDate} goal={goalMatchScore} />
-        </View>
-      </GlassCard>
+      <GlassPanel style={{ gap: 14 }}>
+        <SectionHeader title="Wake Day" subtitle="The night is attributed to the day you woke up." compact />
+        <TwilightButton
+          title={formatDay(sessionDay)}
+          subtle
+          onPress={() => setShowDatePicker(true)}
+        />
+        {showDatePicker ? <DateTimePicker value={sessionDay} mode="date" onChange={onDateChange} /> : null}
+        <MetricGrid>
+          <MetricCard title="Goal Match" value={`${goalMatchScore}%`} subtitle={`${averageGoalDeviationMinutes}m avg drift`} icon="◎" tint={goalMatchScore >= 80 ? palette.green : palette.orange} />
+          <MetricCard title="Duration" value={formatDurationLong(durationSeconds)} subtitle="sleep window" icon="◒" tint={palette.cyan} />
+        </MetricGrid>
+      </GlassPanel>
 
-      <SleepWindowDial
+      <SleepWindowDialChart
         sleepMinutes={sleepMinutes}
         wakeMinutes={wakeMinutes}
         onSleepChange={setSleepMinutes}
         onWakeChange={setWakeMinutes}
       />
 
-      <GlassCard>
-        <InputRow
-          label="Session Tag"
+      <GlassPanel style={{ gap: 14 }}>
+        <SectionHeader title="Timing" subtitle="Circular picker values translated into exact session timestamps." compact />
+        <MetricGrid>
+          <MetricCard title="Bedtime" value={formatClock(sleepMinutes)} subtitle={formatDay(sleepDate)} icon="☾" tint={palette.indigo} />
+          <MetricCard title="Wake" value={formatClock(wakeMinutes)} subtitle={formatDay(wakeDate)} icon="☀" tint={palette.orange} />
+        </MetricGrid>
+        <TextInput
           value={tag}
           placeholder="Manual Log"
+          placeholderTextColor={theme.textSecondary}
           onChangeText={setTag}
+          style={{
+            minHeight: 50,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: theme.outline,
+            backgroundColor: theme.cardMuted,
+            color: theme.textPrimary,
+            paddingHorizontal: 14,
+            fontSize: 15,
+          }}
         />
-      </GlassCard>
+      </GlassPanel>
 
-      <View className="gap-3">
-        <PrimaryButton title="Save Log" onPress={() => void save()} />
-        <PrimaryButton title="Cancel" subtle onPress={() => router.back()} />
-      </View>
-
-      <Text style={{ color: theme.textSecondary }} className="text-center text-sm">
-        Goal match is derived from your configured bedtime and wake-time targets.
-      </Text>
-    </AppScreen>
+      <GlassPanel style={{ gap: 10 }}>
+        <TwilightButton title="Save Log" onPress={() => void save()} />
+        <TwilightButton title="Cancel" subtle onPress={() => router.back()} />
+        <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 17, textAlign: "center" }}>
+          Goal match is derived from your configured bedtime and wake-time targets.
+        </Text>
+      </GlassPanel>
+    </NativeScreen>
   );
 }

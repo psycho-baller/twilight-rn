@@ -1,10 +1,9 @@
 import { router } from "expo-router";
 import * as Linking from "expo-linking";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 
-import { AppScreen, GlassCard, PrimaryButton, SectionTitle } from "@/components/ui";
-import { getTheme } from "@/lib/theme";
-import { useAppStore } from "@/lib/store";
+import { NativeActionButton, NativeFieldGroup, NativeFieldSection } from "@/ui/native";
+import { GlassPanel, NativeScreen, SectionHeader, TwilightButton, useTwilightTheme } from "@/ui/surface";
 
 const links = [
   { title: "LinkedIn", url: "https://www.linkedin.com/in/rami-m" },
@@ -15,30 +14,31 @@ const links = [
 ];
 
 export default function SupportModal() {
-  const appearance = useAppStore((state) => state.appearance);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
 
   return (
-    <AppScreen>
-      <SectionTitle title="Support Twilight" subtitle="Questions, feedback, and the people behind the project." />
-      <GlassCard>
-        <Text style={{ color: theme.textPrimary }} className="text-lg font-semibold">
+    <NativeScreen>
+      <SectionHeader title="Support Twilight" subtitle="Questions, feedback, and the people behind the project." />
+      <GlassPanel>
+        <Text style={{ color: theme.textPrimary, fontSize: 19, fontWeight: "900" }}>
           Thank you for the support.
         </Text>
-        <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
+        <Text style={{ color: theme.textSecondary, marginTop: 12, fontSize: 15, lineHeight: 23 }}>
           Twilight stays free, visual, and local-first. Donations and native Android integrations are intentionally
           deferred in this phase 1 clone, but the support surface remains in the app for parity.
         </Text>
-      </GlassCard>
-      <GlassCard>
-        <View className="gap-3">
+      </GlassPanel>
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Community">
           {links.map((item) => (
-            <PrimaryButton key={item.url} title={item.title} subtle onPress={() => Linking.openURL(item.url)} />
+            <NativeActionButton key={item.url} title={item.title} onPress={() => void Linking.openURL(item.url)} />
           ))}
-          <PrimaryButton title="Donate (coming soon)" subtle disabled />
-        </View>
-      </GlassCard>
-      <PrimaryButton title="Close" onPress={() => router.back()} />
-    </AppScreen>
+          <NativeActionButton title="Donate (coming soon)" disabled />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
+      <TwilightButton title="Close" onPress={() => router.back()} />
+    </NativeScreen>
   );
 }

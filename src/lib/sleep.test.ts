@@ -6,6 +6,7 @@ import {
   canonicalSessions,
   getSleepGreeting,
   processWeeklySleepData,
+  selectNearestSleepPoint,
   sessionDurationSeconds,
 } from "@/lib/sleep";
 import type { BlockedProfileSession } from "@/lib/types";
@@ -102,6 +103,45 @@ describe("sleep metrics utilities", () => {
     expect(buckets.find((bucket) => bucket.label === "7.5-8h")?.count).toBe(1);
     expect(buckets.find((bucket) => bucket.label === "8h+")?.count).toBe(2);
     expect(debt.at(-1)?.cumulativeHours).toBeCloseTo(2, 5);
+  });
+
+  test("buildSleepMetrics exposes Swift-style chart analyzer outputs", () => {
+    const sessions = [
+      makeSession("s1", "2026-04-01T23:00:00.000Z", "2026-04-02T07:00:00.000Z"),
+      makeSession("s2", "2026-04-02T23:30:00.000Z", "2026-04-03T07:00:00.000Z"),
+      makeSession("s3", "2026-04-04T00:30:00.000Z", "2026-04-04T08:30:00.000Z"),
+      makeSession("s4", "2026-04-05T00:45:00.000Z", "2026-04-05T08:45:00.000Z"),
+      makeSession("s5", "2026-04-05T23:00:00.000Z", "2026-04-06T07:00:00.000Z"),
+      makeSession("s6", "2026-04-06T22:45:00.000Z", "2026-04-07T06:45:00.000Z"),
+      makeSession("s7", "2026-04-07T23:15:00.000Z", "2026-04-08T07:15:00.000Z"),
+    ];
+
+    const metrics = buildSleepMetrics(sessions, 23 * 60, 7 * 60);
+    const records = metrics.recordsInRange("All");
+    const movingAverage = metrics.movingAverageSeries(records, 3);
+    const alignment = metrics.sleepAlignmentSeries(records);
+    const timing = metrics.timingTimelineSeries(records);
+    const socialJetlag = metrics.socialJetlag(records);
+    const trendPeriods = metrics.durationTrendsAnalysis();
+    const nearest = selectNearestSleepPoint(timing, new Date("2026-04-04T14:00:00.000Z"));
+
+    expect(movingAverage[0].movingAverageHours).toBeNull();
+    expect(movingAverage[2].movingAverageHours).toBeCloseTo(7.8333, 3);
+    expect(alignment).toHaveLength(records.length);
+    expect(alignment[0].dailyScore).toBe(100);
+    expect(alignment.every((point) => point.dailyScore >= 0 && point.dailyScore <= 100)).toBe(true);
+    expect(timing[0]).toMatchObject({
+      bedtimeOffset: 5,
+      wakeOffset: 13,
+      midpointOffset: 9,
+      durationHours: 8,
+    });
+    expect(socialJetlag.weekdayMidpoint).not.toBeNull();
+    expect(socialJetlag.weekendMidpoint).not.toBeNull();
+    expect(socialJetlag.deltaHours).toBeGreaterThan(1);
+    expect(trendPeriods.map((period) => period.days)).toEqual([3, 7, 14, 30, 90]);
+    expect(trendPeriods.find((period) => period.days === 3)?.averageDuration).toBeCloseTo(8, 5);
+    expect(nearest?.date.toISOString()).toContain("2026-04-04");
   });
 
   test("getSleepGreeting matches the active state and schedule windows", () => {

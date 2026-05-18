@@ -1,19 +1,23 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import {
-  AppScreen,
-  GlassCard,
-  PrimaryButton,
-  SectionTitle,
-  SegmentedControl,
-  SleepWindowDial,
-} from "@/components/ui";
+import { SleepWindowDialChart } from "@/charts";
 import { createSleepProfile } from "@/lib/db";
 import { ensureNotificationPermission } from "@/lib/notifications";
-import { getTheme } from "@/lib/theme";
 import { useAppStore } from "@/lib/store";
+import {
+  GlassPanel,
+  MetricCard,
+  MetricGrid,
+  NativeScreen,
+  SectionHeader,
+  SegmentedPills,
+  TwilightButton,
+  chartPalette,
+  useTwilightTheme,
+} from "@/ui/surface";
 
 const steps = [
   "Welcome",
@@ -30,17 +34,12 @@ export default function OnboardingRoute() {
   const [sleepMinutes, setSleepMinutes] = useState(22 * 60);
   const [wakeMinutes, setWakeMinutes] = useState(7 * 60);
   const updateSleepSettings = useAppStore((state) => state.updateSleepSettings);
-  const appearance = useAppStore((state) => state.appearance);
   const importDemoMode = useAppStore((state) => state.importDemoMode);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
+  const palette = chartPalette(theme);
   const stepIndex = steps.indexOf(step);
 
-  const action = useMemo(() => {
-    if (stepIndex === steps.length - 1) {
-      return "Finish";
-    }
-    return "Continue";
-  }, [stepIndex]);
+  const action = useMemo(() => (stepIndex === steps.length - 1 ? "Finish" : "Continue"), [stepIndex]);
 
   async function finish(withDemo = false) {
     if (withDemo) {
@@ -78,67 +77,60 @@ export default function OnboardingRoute() {
   }
 
   return (
-    <AppScreen>
-      <SectionTitle
+    <NativeScreen>
+      <SectionHeader
         title="Twilight"
-        subtitle="A simple sleep tracker that actually works, rebuilt for Android with the full in-app phase 1 surface."
+        subtitle="A local-first sleep tracker rebuilt for Android while preserving the full in-app iOS surface."
         trailing={
-          <Text style={{ color: theme.textSecondary }} className="text-sm">
+          <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: "800" }}>
             {stepIndex + 1}/{steps.length}
           </Text>
         }
       />
 
-      <SegmentedControl
-        options={[...steps]}
-        value={step}
-        onChange={setStep}
-      />
+      <SegmentedPills options={steps} value={step} onChange={setStep} />
 
       {step === "Welcome" ? (
-        <GlassCard>
-          <Text style={{ color: theme.textPrimary }} className="text-4xl font-bold">
+        <GlassPanel style={{ gap: 18 }}>
+          <View style={{ height: 82, width: 82, borderRadius: 41, alignItems: "center", justifyContent: "center", backgroundColor: theme.glass }}>
+            <Ionicons name="moon" size={42} color={theme.accent} />
+          </View>
+          <Text style={{ color: theme.textPrimary, fontSize: 40, lineHeight: 44, fontWeight: "900" }}>
             Good night, Android.
           </Text>
-          <Text style={{ color: theme.textSecondary }} className="mt-4 text-base leading-7">
-            Twilight keeps sleep tracking local, visual, and brutally honest. This build mirrors the iOS app’s in-app
-            experience first, then layers in Android-native integrations later.
+          <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
+            Twilight starts with manual sessions, sleep logs, analytics, backup, restore, reminders, and demo mode.
+            Native Android integrations are layered in behind explicit adapters.
           </Text>
-        </GlassCard>
+        </GlassPanel>
       ) : null}
 
       {step === "Tracking" ? (
-        <GlassCard>
-          <SectionTitle title="Health & tracking" subtitle="Manual sessions, sleep logs, analytics, backups, and demo mode all work in phase 1." />
-          <View className="mt-4 gap-3">
-            {[
-              "Weekly and long-range sleep analytics",
-              "Editable sleep logs with wake-day semantics",
-              "Backup, restore, CSV export, and AI-friendly Markdown export",
-              "Emergency unblock, reminders, and theme customization",
-            ].map((item) => (
-              <Text key={item} style={{ color: theme.textPrimary }} className="text-base">
-                • {item}
-              </Text>
-            ))}
-          </View>
-        </GlassCard>
+        <GlassPanel style={{ gap: 14 }}>
+          <SectionHeader title="Health & Tracking" subtitle="The phase 1 surface mirrors the SwiftUI app before native Android enforcement is added." compact />
+          <MetricGrid>
+            <MetricCard title="Analytics" value="Charts" subtitle="weekly and long-range" icon="↗" tint={palette.cyan} />
+            <MetricCard title="Logs" value="Editable" subtitle="wake-day semantics" icon="☾" tint={palette.indigo} />
+            <MetricCard title="Backup" value="JSON" subtitle="iOS-compatible archive" icon="◇" tint={palette.green} />
+            <MetricCard title="Safety" value="Local" subtitle="emergency access" icon="◎" tint={palette.orange} />
+          </MetricGrid>
+        </GlassPanel>
       ) : null}
 
       {step === "Health" ? (
-        <GlassCard>
-          <SectionTitle title="Health Connect" subtitle="Deferred in phase 1" />
-          <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-            Apple Health sync is preserved as a first-class surface in the design, but Android Health Connect wiring is
-            intentionally deferred to phase 2. Your sleep data still stays fully local and exportable.
+        <GlassPanel style={{ gap: 12 }}>
+          <SectionHeader title="Health Connect" subtitle="Deferred in phase 1" compact />
+          <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
+            Apple Health is represented here as an Android Health Connect placeholder. Sleep data remains fully local,
+            editable, and exportable until native sync ships in phase 2.
           </Text>
-        </GlassCard>
+        </GlassPanel>
       ) : null}
 
       {step === "Schedule" ? (
-        <View className="gap-4">
-          <SectionTitle title="Set your rhythm" subtitle="Choose the sleep and wake targets used throughout charts, streaks, and log scoring." />
-          <SleepWindowDial
+        <View style={{ gap: 14 }}>
+          <SectionHeader title="Set Your Rhythm" subtitle="Choose the sleep and wake targets used throughout charts, streaks, and log scoring." compact />
+          <SleepWindowDialChart
             sleepMinutes={sleepMinutes}
             wakeMinutes={wakeMinutes}
             onSleepChange={setSleepMinutes}
@@ -148,49 +140,44 @@ export default function OnboardingRoute() {
       ) : null}
 
       {step === "Notifications" ? (
-        <GlassCard>
-          <SectionTitle title="Notifications" subtitle="Twilight can schedule daily wind-down reminders and session reminders." />
-          <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-            We’ll ask for permission next so the app can nudge you three hours before bedtime and remind you when a
-            break is almost over.
+        <GlassPanel style={{ gap: 12 }}>
+          <SectionHeader title="Notifications" subtitle="Wind-down and session reminders are live in phase 1." compact />
+          <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
+            Twilight will ask for permission next so it can remind you before bedtime and when breaks are about to end.
           </Text>
-        </GlassCard>
+        </GlassPanel>
       ) : null}
 
       {step === "NFC" ? (
-        <GlassCard>
-          <SectionTitle title="NFC & QR shortcuts" subtitle="Deferred in Android core" />
-          <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-            The full strategy model remains in the app, including NFC and QR-based wake/sleep controls. The Android
-            core release stores those settings now and enables the native triggers in phase 2.
+        <GlassPanel style={{ gap: 12 }}>
+          <SectionHeader title="NFC & QR Shortcuts" subtitle="Deferred in Android core" compact />
+          <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
+            The full strategy model remains visible, including NFC and QR sleep controls. Android-native physical
+            triggers are phase 2 work; manual sessions are executable now.
           </Text>
-        </GlassCard>
+        </GlassPanel>
       ) : null}
 
       {step === "Demo" ? (
-        <View className="gap-4">
-          <GlassCard>
-            <SectionTitle title="Explore the app" subtitle="Load sample data to see the full dashboard before your own history exists." />
-            <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-              Demo mode imports a realistic backup, powers the metrics tab immediately, and keeps a full backup of your
-              previous local state so you can exit safely later.
+        <View style={{ gap: 14 }}>
+          <GlassPanel style={{ gap: 12 }}>
+            <SectionHeader title="Explore the App" subtitle="Load sample data to see the full dashboard immediately." compact />
+            <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
+              Demo mode imports a realistic backup and keeps a restore point of your previous local state.
             </Text>
-          </GlassCard>
-
-          <PrimaryButton title="Explore demo data" onPress={() => finish(true)} icon="✨" />
+          </GlassPanel>
+          <TwilightButton title="Explore demo data" onPress={() => void finish(true)} />
         </View>
       ) : null}
 
-      <View className="gap-3">
-        <PrimaryButton title={action} onPress={() => void next()} />
+      <GlassPanel style={{ gap: 10 }}>
+        <TwilightButton title={action} onPress={() => void next()} />
         {stepIndex > 0 ? (
-          <Pressable onPress={() => setStep(steps[stepIndex - 1])}>
-            <Text style={{ color: theme.textSecondary }} className="text-center text-sm">
-              Back
-            </Text>
+          <Pressable onPress={() => setStep(steps[stepIndex - 1])} style={{ minHeight: 36, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: theme.textSecondary, fontSize: 14, fontWeight: "800" }}>Back</Text>
           </Pressable>
         ) : null}
-      </View>
-    </AppScreen>
+      </GlassPanel>
+    </NativeScreen>
   );
 }

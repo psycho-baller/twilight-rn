@@ -3,12 +3,15 @@ import { addDays, clamp, minutesFromDate, startOfDay } from "@/lib/format";
 import type {
   BlockedProfileSession,
   DailySleepData,
+  SleepAlignmentScorePoint,
   SleepConsistencyPoint,
   SleepDebtPoint,
   SleepDurationBucket,
   SleepMetricsRange,
   SleepMovingAveragePoint,
   SleepNightRecord,
+  SleepSocialJetlag,
+  SleepTimingPoint,
   SleepTrendPeriod,
   SleepWeekdayAverage,
 } from "@/lib/types";
@@ -115,6 +118,19 @@ function consistencyScore(values: number[]) {
   const mean = average(values) ?? 0;
   const variance = average(values.map((value) => (value - mean) ** 2)) ?? 0;
   return clamp(100 - Math.round(Math.sqrt(variance) * 40), 0, 100);
+}
+
+function componentScoreFromHours(deltaHours: number, penaltyPerHour: number) {
+  return clamp(100 - Math.round(Math.abs(deltaHours) * penaltyPerHour), 0, 100);
+}
+
+function scoreAverage(values: number[]) {
+  const active = values.filter((value) => Number.isFinite(value));
+  return active.length === 0 ? 0 : active.reduce((sum, value) => sum + value, 0) / active.length;
+}
+
+function rollingTrend(previous: number | null, current: number) {
+  return previous == null ? current : previous * 0.8 + current * 0.2;
 }
 
 function wrappedMinuteDifference(actual: number, target: number) {
@@ -423,7 +439,7 @@ export function buildSleepMetrics(
       });
     },
     durationTrendsAnalysis(): SleepTrendPeriod[] {
-      return [7, 14, 30, 90].map((days) => {
+      return [3, 7, 14, 30, 90].map((days) => {
         const current = model.records.slice(-days);
         const previous = model.records.slice(-(days * 2), -days);
         return {
@@ -441,7 +457,74 @@ export function buildSleepMetrics(
         };
       });
     },
+    sleepAlignmentSeries(records: SleepNightRecord[]): SleepAlignmentScorePoint[] {
+      let previousTrend: number | null = null;
+      return records.map((record, index) => {
+        const trailing = records.slice(Math.max(0, index - 13), index + 1);
+        const durationScore = componentScoreFromHours(record.durationHours - model.targetDurationHours, 24);
+        const sleepDeviation = record.bedtimeOffset - model.targetSleepOffset;
+        const wakeDeviation = record.wakeOffset - model.targetWakeOffset;
+        const timingScore = componentScoreFromHours((Math.abs(sleepDeviation) + Math.abs(wakeDeviation)) / 2, 25);
+        const targetMidpoint = model.targetSleepOffset + model.targetDurationHours / 2;
+        const phaseScore = componentScoreFromHours(record.midpointOffset - targetMidpoint, 18);
+        const consistencyComponent =
+          trailing.length < 3
+            ? timingScore
+            : scoreAverage([
+                consistencyScore(trailing.map((entry) => entry.bedtimeOffset)),
+                consistencyScore(trailing.map((entry) => entry.wakeOffset)),
+              ]);
+        const coreScore = scoreAverage([durationScore, consistencyComponent]);
+        const dailyScore = scoreAverage([durationScore, timingScore, phaseScore, consistencyComponent]);
+        const trendScore = rollingTrend(previousTrend, dailyScore);
+        previousTrend = trendScore;
+        return {
+          date: record.date,
+          dailyScore: Math.round(dailyScore),
+          trendScore: Math.round(trendScore),
+          coreScore: Math.round(coreScore),
+          durationScore: Math.round(durationScore),
+          timingScore: Math.round(timingScore),
+          phaseScore: Math.round(phaseScore),
+          consistencyScore: Math.round(consistencyComponent),
+        };
+      });
+    },
+    timingTimelineSeries(records: SleepNightRecord[]): SleepTimingPoint[] {
+      return records.map((record) => ({
+        date: record.date,
+        bedtimeOffset: record.bedtimeOffset,
+        wakeOffset: record.wakeOffset,
+        midpointOffset: record.midpointOffset,
+        durationHours: record.durationHours,
+      }));
+    },
+    socialJetlag(records: SleepNightRecord[]): SleepSocialJetlag {
+      const weekday = records.filter((record) => record.weekday >= 2 && record.weekday <= 6);
+      const weekend = records.filter((record) => record.weekday === 1 || record.weekday === 7);
+      const weekdayMidpoint = average(weekday.map((record) => record.midpointOffset));
+      const weekendMidpoint = average(weekend.map((record) => record.midpointOffset));
+      return {
+        weekdayMidpoint,
+        weekendMidpoint,
+        deltaHours: weekdayMidpoint == null || weekendMidpoint == null ? null : weekendMidpoint - weekdayMidpoint,
+      };
+    },
   };
+}
+
+export function selectNearestSleepPoint<T extends { date: Date }>(series: T[], date: Date) {
+  if (series.length === 0) return null;
+  let selected = series[0];
+  let distance = Math.abs(series[0].date.getTime() - date.getTime());
+  for (const item of series.slice(1)) {
+    const nextDistance = Math.abs(item.date.getTime() - date.getTime());
+    if (nextDistance < distance) {
+      selected = item;
+      distance = nextDistance;
+    }
+  }
+  return selected;
 }
 
 const EARLY_MORNING = [

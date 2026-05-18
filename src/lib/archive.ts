@@ -3,7 +3,6 @@ import {
   clearAllData,
   getAppState,
   getAppearance,
-  getDemoRestoreState,
   getEmergencyState,
   getHydratedState,
   getProfiles,
@@ -55,7 +54,7 @@ function decodeSelectedActivity(raw: unknown): ActivitySelectionSnapshot {
 
   const packageNames =
     (value.untokenizedApplicationIdentifiers as string[] | undefined) ??
-    ((value.applicationTokens as Array<{ data?: string }> | undefined)?.map((item) => item.data).filter(Boolean) as string[] | undefined) ??
+    ((value.applicationTokens as { data?: string }[] | undefined)?.map((item) => item.data).filter(Boolean) as string[] | undefined) ??
     [];
   const categoryIds =
     (value.untokenizedCategoryIdentifiers as string[] | undefined) ??

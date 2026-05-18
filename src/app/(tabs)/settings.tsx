@@ -1,23 +1,34 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 
-import {
-  AppScreen,
-  EmptyState,
-  GlassCard,
-  InputRow,
-  PrimaryButton,
-  SectionTitle,
-  SegmentedControl,
-  SleepWindowDial,
-  ToggleRow,
-} from "@/components/ui";
+import { SleepWindowDialChart } from "@/charts";
 import { DEFERRED_FEATURE_MESSAGE, STRATEGIES } from "@/lib/constants";
+import { formatClock } from "@/lib/format";
 import { ensureNotificationPermission } from "@/lib/notifications";
-import { getTheme } from "@/lib/theme";
 import { selectDemoMode, selectSleepProfile, useAppStore } from "@/lib/store";
-import type { BlockedProfile } from "@/lib/types";
+import type { BlockedProfile, BlockingStrategyId, ColorPalette, ThemeMode } from "@/lib/types";
+import {
+  NativeActionButton,
+  NativeFieldGroup,
+  NativeFieldSection,
+  NativeRow,
+  NativeSegmentedControl,
+  NativeSwitchRow,
+  NativeTextField,
+} from "@/ui/native";
+import {
+  EmptyPanel,
+  GlassPanel,
+  MetricCard,
+  MetricGrid,
+  NativeScreen,
+  SectionHeader,
+  TwilightButton,
+  chartPalette,
+  useTwilightTheme,
+} from "@/ui/surface";
 
 const weekdayLabels = [
   { value: 1, label: "S" },
@@ -29,6 +40,9 @@ const weekdayLabels = [
   { value: 7, label: "S" },
 ];
 
+const themeModes: ThemeMode[] = ["System", "Sunset", "Night Sky"];
+const palettes: ColorPalette[] = ["Twilight", "Amethyst"];
+
 export default function SettingsRoute() {
   const setLastViewedTab = useAppStore((state) => state.setLastViewedTab);
   const sleepProfile = useAppStore(selectSleepProfile);
@@ -39,12 +53,12 @@ export default function SettingsRoute() {
 
   if (!sleepProfile) {
     return (
-      <AppScreen>
-        <EmptyState
+      <NativeScreen>
+        <EmptyPanel
           title="Settings unavailable"
           subtitle="Twilight needs a sleep profile before it can save strategy, reminder, and theme settings."
         />
-      </AppScreen>
+      </NativeScreen>
     );
   }
 
@@ -52,28 +66,29 @@ export default function SettingsRoute() {
 }
 
 function SettingsForm({ sleepProfile }: { sleepProfile: BlockedProfile }) {
-  const appearance = useAppStore((state) => state.appearance);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
+  const appearance = useAppStore((state) => state.appearance);
   const updateAppearance = useAppStore((state) => state.updateAppearance);
   const updateSleepSettings = useAppStore((state) => state.updateSleepSettings);
   const createOrUpdateProfile = useAppStore((state) => state.createOrUpdateProfile);
   const exitDemoMode = useAppStore((state) => state.exitDemoMode);
   const isDemoMode = useAppStore(selectDemoMode);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
+  const palette = chartPalette(theme);
 
-  const [name, setName] = useState(sleepProfile?.name ?? "Sleep");
-  const [domainsText, setDomainsText] = useState((sleepProfile?.domains ?? []).join("\n"));
-  const [selectedStrategy, setSelectedStrategy] = useState(sleepProfile?.blockingStrategyId ?? "ManualBlockingStrategy");
-  const [breaksEnabled, setBreaksEnabled] = useState(Boolean(sleepProfile?.enableBreaks));
-  const [breakMinutes, setBreakMinutes] = useState(sleepProfile?.breakTimeInMinutes ?? 15);
-  const [strictMode, setStrictMode] = useState(Boolean(sleepProfile?.enableStrictMode));
-  const [allowMode, setAllowMode] = useState(Boolean(sleepProfile?.enableAllowMode));
-  const [allowDomainsMode, setAllowDomainsMode] = useState(Boolean(sleepProfile?.enableAllowModeDomains));
-  const [safariBlocking, setSafariBlocking] = useState(Boolean(sleepProfile?.enableSafariBlocking ?? true));
-  const [useSleepSchedule, setUseSleepSchedule] = useState(Boolean(sleepProfile?.useSleepSchedule));
+  const [name, setName] = useState(sleepProfile.name);
+  const [domainsText, setDomainsText] = useState((sleepProfile.domains ?? []).join("\n"));
+  const [selectedStrategy, setSelectedStrategy] = useState<BlockingStrategyId>(sleepProfile.blockingStrategyId ?? "ManualBlockingStrategy");
+  const [breaksEnabled, setBreaksEnabled] = useState(Boolean(sleepProfile.enableBreaks));
+  const [breakMinutes, setBreakMinutes] = useState(sleepProfile.breakTimeInMinutes ?? 15);
+  const [strictMode, setStrictMode] = useState(Boolean(sleepProfile.enableStrictMode));
+  const [allowMode, setAllowMode] = useState(Boolean(sleepProfile.enableAllowMode));
+  const [allowDomainsMode, setAllowDomainsMode] = useState(Boolean(sleepProfile.enableAllowModeDomains));
+  const [safariBlocking, setSafariBlocking] = useState(Boolean(sleepProfile.enableSafariBlocking ?? true));
+  const [useSleepSchedule, setUseSleepSchedule] = useState(Boolean(sleepProfile.useSleepSchedule));
   const [windDownReminderEnabled, setWindDownReminderEnabled] = useState(sleepSettings.windDownReminderEnabled);
   const [healthSyncEnabled, setHealthSyncEnabled] = useState(sleepSettings.healthSyncEnabled);
-  const [scheduleDays, setScheduleDays] = useState<number[]>(sleepProfile?.schedule?.days ?? []);
+  const [scheduleDays, setScheduleDays] = useState<number[]>(sleepProfile.schedule?.days ?? []);
 
   const strategy = useMemo(
     () => STRATEGIES.find((item) => item.id === selectedStrategy),
@@ -123,217 +138,228 @@ function SettingsForm({ sleepProfile }: { sleepProfile: BlockedProfile }) {
   }
 
   return (
-    <AppScreen>
-      <SectionTitle title="Settings" subtitle="Everything the iOS sleep profile screen exposes, preserved in the Android phase 1 app." />
+    <NativeScreen>
+      <SectionHeader
+        title="Settings"
+        subtitle="Sleep profile controls, Android-core deferred surfaces, appearance, reminders, and data tools."
+      />
 
-      <GlassCard>
-        <SectionTitle title="Sleep goal" subtitle="These targets power scoring, reminders, charts, and the log editor." />
-        <View className="mt-4">
-          <SleepWindowDial
-            sleepMinutes={sleepSettings.optimalSleepMinutes}
-            wakeMinutes={sleepSettings.optimalWakeMinutes}
-            onSleepChange={(minutes) => void updateSleepSettings({ optimalSleepMinutes: minutes })}
-            onWakeChange={(minutes) => void updateSleepSettings({ optimalWakeMinutes: minutes })}
-          />
-        </View>
-      </GlassCard>
+      <GlassPanel style={{ gap: 14 }}>
+        <SectionHeader title="Sleep Goal" subtitle="These targets power scoring, reminders, charts, and the log editor." compact />
+        <MetricGrid>
+          <MetricCard title="Bedtime" value={formatClock(sleepSettings.optimalSleepMinutes)} subtitle="target" icon="☾" tint={palette.indigo} />
+          <MetricCard title="Wake" value={formatClock(sleepSettings.optimalWakeMinutes)} subtitle="target" icon="☀" tint={palette.orange} />
+        </MetricGrid>
+        <SleepWindowDialChart
+          sleepMinutes={sleepSettings.optimalSleepMinutes}
+          wakeMinutes={sleepSettings.optimalWakeMinutes}
+          onSleepChange={(minutes) => void updateSleepSettings({ optimalSleepMinutes: minutes })}
+          onWakeChange={(minutes) => void updateSleepSettings({ optimalWakeMinutes: minutes })}
+        />
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Profile" subtitle="Core sleep-profile identity and manual blocking behavior." />
-        <View className="mt-4 gap-3">
-          <InputRow label="Name" value={name} onChangeText={setName} />
-          <Text style={{ color: theme.textSecondary }} className="text-xs uppercase tracking-[1.4px]">
-            Strategy
-          </Text>
-          <View className="gap-3">
-            {STRATEGIES.map((item) => {
-              const active = item.id === selectedStrategy;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setSelectedStrategy(item.id)}
-                  className="rounded-[22px] border px-4 py-4"
-                  style={{
-                    backgroundColor: active ? `${item.accent}22` : theme.cardMuted,
-                    borderColor: active ? item.accent : theme.outline,
-                  }}
-                >
-                  <Text style={{ color: theme.textPrimary }} className="text-base font-semibold">
-                    {item.name}
-                  </Text>
-                  <Text style={{ color: theme.textSecondary }} className="mt-1 text-sm leading-5">
-                    {item.description}
-                  </Text>
-                  {!item.executableInPhaseOne ? (
-                    <Text style={{ color: theme.warning }} className="mt-2 text-xs font-semibold">
-                      Deferred in Android core
-                    </Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </GlassCard>
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Profile" footer="Manual strategy executes in phase 1. NFC and QR strategies stay visible but are deferred on Android.">
+            <NativeTextField title="Profile name" value={name} onChangeText={setName} placeholder="Sleep" />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Breaks & safeguards" subtitle="Stored exactly like the iOS app, but Android enforcement is intentionally deferred." />
-        <View className="mt-4 gap-1">
-          <ToggleRow title="Enable breaks" value={breaksEnabled} onValueChange={setBreaksEnabled} />
-          <View className="flex-row gap-3">
-            <PrimaryButton title="-5 min" subtle onPress={() => setBreakMinutes(Math.max(5, breakMinutes - 5))} />
-            <PrimaryButton title={`Break: ${breakMinutes}m`} subtle />
-            <PrimaryButton title="+5 min" subtle onPress={() => setBreakMinutes(Math.min(60, breakMinutes + 5))} />
-          </View>
-          <ToggleRow title="Strict mode" subtitle={DEFERRED_FEATURE_MESSAGE} value={strictMode} onValueChange={setStrictMode} />
-          <ToggleRow title="Allow mode" subtitle={DEFERRED_FEATURE_MESSAGE} value={allowMode} onValueChange={setAllowMode} />
-          <ToggleRow title="Allow mode for domains" subtitle={DEFERRED_FEATURE_MESSAGE} value={allowDomainsMode} onValueChange={setAllowDomainsMode} />
-          <ToggleRow title="Safari / browser blocking" subtitle={DEFERRED_FEATURE_MESSAGE} value={safariBlocking} onValueChange={setSafariBlocking} />
-        </View>
-      </GlassCard>
+      <GlassPanel style={{ gap: 12 }}>
+        <SectionHeader title="Strategy" subtitle="Original strategy IDs, descriptions, and parity states are preserved." compact />
+        {STRATEGIES.map((item) => {
+          const active = item.id === selectedStrategy;
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => setSelectedStrategy(item.id)}
+              style={({ pressed }) => ({
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: active ? item.accent : theme.outline,
+                backgroundColor: active ? `${item.accent}22` : theme.cardMuted,
+                padding: 14,
+                opacity: pressed ? 0.75 : 1,
+                gap: 6,
+              })}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "900" }}>{item.name}</Text>
+                  <Text style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12, lineHeight: 17 }}>{item.description}</Text>
+                </View>
+                <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={21} color={active ? item.accent : theme.textSecondary} />
+              </View>
+              {!item.executableInPhaseOne ? (
+                <Text style={{ color: theme.warning, fontSize: 12, fontWeight: "800" }}>Android-core deferred</Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Web domains" subtitle="Editable now, enforcement later." />
-        <View className="mt-4 gap-3">
-          <InputRow
-            label="One domain per line"
-            value={domainsText}
-            multiline
-            placeholder="youtube.com&#10;reddit.com"
-            onChangeText={setDomainsText}
-          />
-        </View>
-      </GlassCard>
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Breaks & safeguards" footer={DEFERRED_FEATURE_MESSAGE}>
+            <NativeSwitchRow title="Enable breaks" value={breaksEnabled} onValueChange={setBreaksEnabled} />
+            <NativeRow
+              title="Break duration"
+              subtitle={`${breakMinutes} minutes`}
+              trailing={
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TwilightButton
+                    title="-5"
+                    subtle
+                    style={{ minHeight: 34, minWidth: 48, borderRadius: 13, paddingVertical: 6 }}
+                    textStyle={{ fontSize: 13 }}
+                    onPress={() => setBreakMinutes(Math.max(5, breakMinutes - 5))}
+                  />
+                  <TwilightButton
+                    title="+5"
+                    subtle
+                    style={{ minHeight: 34, minWidth: 48, borderRadius: 13, paddingVertical: 6 }}
+                    textStyle={{ fontSize: 13 }}
+                    onPress={() => setBreakMinutes(Math.min(60, breakMinutes + 5))}
+                  />
+                </View>
+              }
+            />
+            <NativeSwitchRow title="Strict mode" subtitle="Stored but not enforced in phase 1." value={strictMode} onValueChange={setStrictMode} />
+            <NativeSwitchRow title="Allow mode" subtitle="Stored but not enforced in phase 1." value={allowMode} onValueChange={setAllowMode} />
+            <NativeSwitchRow title="Domain allow mode" subtitle="Stored but not enforced in phase 1." value={allowDomainsMode} onValueChange={setAllowDomainsMode} />
+            <NativeSwitchRow title="Browser blocking" subtitle="Stored but not enforced in phase 1." value={safariBlocking} onValueChange={setSafariBlocking} />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Sleep schedule" subtitle="Saved in phase 1, enforcement deferred." />
-        <View className="mt-4 gap-3">
-          <ToggleRow title="Use sleep schedule" value={useSleepSchedule} onValueChange={setUseSleepSchedule} />
-          <View className="flex-row gap-2">
-            {weekdayLabels.map((day) => {
-              const active = scheduleDays.includes(day.value);
-              return (
-                <Pressable
-                  key={`${day.value}-${day.label}`}
-                  onPress={() =>
-                    setScheduleDays((current) =>
-                      current.includes(day.value)
-                        ? current.filter((item) => item !== day.value)
-                        : [...current, day.value].sort((left, right) => left - right),
-                    )
-                  }
-                  className="h-11 w-11 items-center justify-center rounded-full border"
-                  style={{
-                    backgroundColor: active ? theme.accent : theme.cardMuted,
-                    borderColor: active ? theme.accent : theme.outline,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? (appearance.themeMode === "Sunset" ? "#FFFFFF" : "#06131B") : theme.textPrimary,
-                    }}
-                    className="text-sm font-semibold"
-                  >
-                    {day.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </GlassCard>
+      <GlassPanel style={{ gap: 12 }}>
+        <SectionHeader title="Web Domains" subtitle="Editable now, app and domain enforcement later." compact />
+        <TextInput
+          value={domainsText}
+          multiline
+          placeholder="youtube.com\nreddit.com"
+          placeholderTextColor={theme.textSecondary}
+          onChangeText={setDomainsText}
+          style={{
+            minHeight: 120,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: theme.outline,
+            backgroundColor: theme.cardMuted,
+            color: theme.textPrimary,
+            padding: 14,
+            textAlignVertical: "top",
+            fontSize: 14,
+            lineHeight: 20,
+          }}
+        />
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="NFC & QR shortcuts" subtitle="Visible for parity, intentionally deferred." />
-        <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-          The six non-manual strategies stay in the Android clone with the same naming and settings surface. Native NFC
-          and QR triggers are phase 2 work.
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Sleep schedule" footer="Schedule settings are saved for parity. Android enforcement is phase 2.">
+            <NativeSwitchRow title="Use sleep schedule" value={useSleepSchedule} onValueChange={setUseSleepSchedule} />
+            <View style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 10 }}>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>ACTIVE DAYS</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {weekdayLabels.map((day) => {
+                  const active = scheduleDays.includes(day.value);
+                  return (
+                    <Pressable
+                      key={`${day.value}-${day.label}`}
+                      onPress={() =>
+                        setScheduleDays((current) =>
+                          current.includes(day.value)
+                            ? current.filter((item) => item !== day.value)
+                            : [...current, day.value].sort((left, right) => left - right),
+                        )
+                      }
+                      style={{
+                        height: 42,
+                        width: 42,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: 21,
+                        borderWidth: 1,
+                        borderColor: active ? theme.accent : theme.outline,
+                        backgroundColor: active ? theme.accent : theme.cardMuted,
+                      }}
+                    >
+                      <Text style={{ color: active ? "#06131B" : theme.textPrimary, fontSize: 14, fontWeight: "900" }}>{day.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
+
+      <GlassPanel style={{ gap: 12 }}>
+        <SectionHeader title="NFC & QR Shortcuts" subtitle="Visible for parity, intentionally deferred." compact />
+        <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 21 }}>
+          The six non-manual strategies keep their names and settings surface. Native NFC reads, QR scanning, shortcut
+          deep links, and app-block enforcement remain behind Android adapters for phase 2.
         </Text>
-      </GlassCard>
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Appearance" subtitle="Same palette and theme-mode vocabulary as the Swift app." />
-        <View className="mt-4 gap-4">
-          <View className="gap-2">
-            <Text style={{ color: theme.textSecondary }} className="text-xs uppercase tracking-[1.4px]">
-              Theme mode
-            </Text>
-            <SegmentedControl
-              options={["System", "Sunset", "Night Sky"]}
-              value={appearance.themeMode}
-              onChange={(value) => void updateAppearance({ themeMode: value })}
+      <GlassPanel style={{ gap: 12 }}>
+        <SectionHeader title="Appearance" subtitle="Same palette and theme-mode vocabulary as the SwiftUI app." compact />
+        <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>THEME MODE</Text>
+        <NativeSegmentedControl options={themeModes} value={appearance.themeMode} onChange={(value) => void updateAppearance({ themeMode: value })} />
+        <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>PALETTE</Text>
+        <NativeSegmentedControl options={palettes} value={appearance.colorPalette} onChange={(value) => void updateAppearance({ colorPalette: value })} />
+      </GlassPanel>
+
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Notifications">
+            <NativeSwitchRow
+              title="Wind-down reminder"
+              subtitle="Schedules a daily reminder three hours before bedtime."
+              value={windDownReminderEnabled}
+              onValueChange={setWindDownReminderEnabled}
             />
-          </View>
-          <View className="gap-2">
-            <Text style={{ color: theme.textSecondary }} className="text-xs uppercase tracking-[1.4px]">
-              Palette
-            </Text>
-            <SegmentedControl
-              options={["Twilight", "Amethyst"]}
-              value={appearance.colorPalette}
-              onChange={(value) => void updateAppearance({ colorPalette: value })}
-            />
-          </View>
-        </View>
-      </GlassCard>
+          </NativeFieldSection>
+          <NativeFieldSection title="Health Connect" footer="The iOS Apple Health surface maps to this Android placeholder until Health Connect lands in phase 2.">
+            <NativeSwitchRow title="Health sync" value={healthSyncEnabled} onValueChange={setHealthSyncEnabled} />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
 
-      <GlassCard>
-        <SectionTitle title="Notifications" subtitle="Wind-down reminders are live in phase 1." />
-        <View className="mt-4 gap-2">
-          <ToggleRow
-            title="Wind-down reminder"
-            subtitle="Schedules a daily reminder three hours before your bedtime target."
-            value={windDownReminderEnabled}
-            onValueChange={setWindDownReminderEnabled}
-          />
-        </View>
-      </GlassCard>
-
-      <GlassCard>
-        <SectionTitle title="Health Connect" subtitle="Deferred placeholder" />
-        <View className="mt-4 gap-2">
-          <ToggleRow
-            title="Health sync"
-            subtitle="The iOS Apple Health surface is preserved here, but Android Health Connect wiring lands in phase 2."
-            value={healthSyncEnabled}
-            onValueChange={setHealthSyncEnabled}
-          />
-        </View>
-      </GlassCard>
-
-      <GlassCard>
-        <SectionTitle title="Community" subtitle="Support, feedback, and social links." />
-        <View className="mt-4 gap-3">
-          <PrimaryButton title="Support Twilight" subtle onPress={() => router.push("/modals/support")} />
-          <PrimaryButton title="Import & Export Data" subtle onPress={() => router.push("/modals/data-management")} />
-          <PrimaryButton title="Emergency Access" subtle onPress={() => router.push("/modals/emergency")} />
-        </View>
-      </GlassCard>
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Community & data">
+            <NativeActionButton title="Support Twilight" onPress={() => router.push("/modals/support")} />
+            <NativeActionButton title="Import & Export Data" onPress={() => router.push("/modals/data-management")} />
+            <NativeActionButton title="Emergency Access" onPress={() => router.push("/modals/emergency")} />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
 
       {isDemoMode ? (
-        <GlassCard>
-          <SectionTitle title="Demo Data" subtitle="This sample was loaded from onboarding so you could explore the app with real sleep patterns." />
-          <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
+        <GlassPanel style={{ gap: 12 }}>
+          <SectionHeader title="Demo Data" subtitle="Exit demo mode from inside Settings so it never obscures toolbar actions." compact />
+          <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 21 }}>
             Exiting demo mode restores the backup created before the sample import.
           </Text>
-          <View className="mt-4">
-            <PrimaryButton title="Exit Demo and Restore Previous Data" onPress={() => void exitDemoMode()} />
-          </View>
-        </GlassCard>
+          <TwilightButton title="Exit Demo and Restore Previous Data" onPress={() => void exitDemoMode()} />
+        </GlassPanel>
       ) : null}
 
-      <GlassCard>
-        <SectionTitle title="Development" subtitle="Android-core placeholders for non-phase-1 native integrations." />
-        <Text style={{ color: theme.textSecondary }} className="mt-3 text-base leading-7">
-          Live Activities, widgets, quick controls, app links for sleep mode, native app pickers, NFC read/write, QR
-          scanning, Health Connect sync, and app blocking enforcement are all explicitly deferred behind adapters.
+      <GlassPanel style={{ gap: 8 }}>
+        <SectionHeader title="Development" subtitle="Android-core placeholders for non-phase-1 native integrations." compact />
+        <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 21 }}>
+          Widgets, tiles, quick controls, app links for sleep mode, native app pickers, NFC read/write, QR scanning,
+          Health Connect sync, review prompts, IAP, and app blocking enforcement are deferred behind adapters.
         </Text>
-      </GlassCard>
+      </GlassPanel>
 
-      <PrimaryButton
+      <TwilightButton
         title={`Save ${strategy?.executableInPhaseOne ? "Changes" : "Parity Surface"}`}
         onPress={() => void saveProfile()}
       />
-    </AppScreen>
+    </NativeScreen>
   );
 }

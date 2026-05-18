@@ -3,11 +3,11 @@ import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { Alert, Text } from "react-native";
 
-import { AppScreen, GlassCard, PrimaryButton, SectionTitle } from "@/components/ui";
-import { getTheme } from "@/lib/theme";
 import { useAppStore } from "@/lib/store";
+import { NativeActionButton, NativeFieldGroup, NativeFieldSection } from "@/ui/native";
+import { GlassPanel, NativeScreen, SectionHeader, TwilightButton, useTwilightTheme } from "@/ui/surface";
 
 async function shareTextFile(filename: string, contents: string) {
   const file = new File(Paths.cache, filename);
@@ -20,13 +20,12 @@ async function shareTextFile(filename: string, contents: string) {
 
 export default function DataManagementModal() {
   const [busy, setBusy] = useState(false);
-  const appearance = useAppStore((state) => state.appearance);
   const exportCsv = useAppStore((state) => state.exportCsv);
   const exportMarkdown = useAppStore((state) => state.exportMarkdown);
   const exportBackup = useAppStore((state) => state.exportBackup);
   const previewImport = useAppStore((state) => state.previewImport);
   const importBackup = useAppStore((state) => state.importBackup);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
 
   async function handleImport() {
     try {
@@ -88,20 +87,26 @@ export default function DataManagementModal() {
   }
 
   return (
-    <AppScreen>
-      <SectionTitle title="Data Management" subtitle="CSV export, AI-friendly Markdown export, and full JSON backups." />
-      <GlassCard>
-        <View className="gap-3">
-          <PrimaryButton title="Export CSV" subtle disabled={busy} onPress={() => void handleExport("csv")} />
-          <PrimaryButton title="Export Markdown" subtle disabled={busy} onPress={() => void handleExport("markdown")} />
-          <PrimaryButton title="Export Full Backup" subtle disabled={busy} onPress={() => void handleExport("backup")} />
-          <PrimaryButton title="Import Backup" disabled={busy} onPress={() => void handleImport()} />
-        </View>
-      </GlassCard>
-      <Text style={{ color: theme.textSecondary }} className="text-center text-sm leading-6">
+    <NativeScreen>
+      <SectionHeader title="Data Management" subtitle="CSV export, AI-friendly Markdown export, and full JSON backups." />
+      <GlassPanel padded={false} style={{ paddingVertical: 8 }}>
+        <NativeFieldGroup>
+          <NativeFieldSection title="Export">
+            <NativeActionButton title="Export CSV" disabled={busy} onPress={() => void handleExport("csv")} />
+            <NativeActionButton title="Export Markdown" disabled={busy} onPress={() => void handleExport("markdown")} />
+            <NativeActionButton title="Export Full Backup" disabled={busy} onPress={() => void handleExport("backup")} />
+          </NativeFieldSection>
+          <NativeFieldSection title="Import" footer="Imports preview changes before merging with current local data.">
+            <NativeActionButton title="Import Backup" variant="filled" disabled={busy} onPress={() => void handleImport()} />
+          </NativeFieldSection>
+        </NativeFieldGroup>
+      </GlassPanel>
+      <GlassPanel>
+        <Text style={{ color: theme.textSecondary, textAlign: "center", fontSize: 14, lineHeight: 21 }}>
         Full backups merge with current data and automatically create a pre-import backup first.
       </Text>
-      <PrimaryButton title="Close" subtle onPress={() => router.back()} />
-    </AppScreen>
+      </GlassPanel>
+      <TwilightButton title="Close" subtle onPress={() => router.back()} />
+    </NativeScreen>
   );
 }

@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 
 import { formatClock, formatDuration, formatHours, formatTime } from "@/lib/format";
@@ -34,6 +35,9 @@ export function AppScreen({
 }) {
   const appearance = useAppStore((state) => state.appearance);
   const theme = getTheme(appearance);
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 8, 18);
+  const bottomPadding = Math.max(insets.bottom + 96, 112);
   const content = (
     <View style={{ flex: 1 }}>
       <LinearGradient
@@ -44,13 +48,28 @@ export function AppScreen({
       {scroll ? (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 18, paddingBottom: 120, rowGap: 16 }}
+          contentContainerStyle={{
+            paddingHorizontal: 18,
+            paddingTop: topPadding,
+            paddingBottom: bottomPadding,
+            rowGap: 16,
+          }}
+          scrollIndicatorInsets={{ top: insets.top, bottom: bottomPadding }}
           showsVerticalScrollIndicator={false}
         >
           {children}
         </ScrollView>
       ) : (
-        <View style={{ flex: 1, paddingHorizontal: 16, paddingVertical: 16 }}>{children}</View>
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 16,
+            paddingTop: Math.max(insets.top + 8, 16),
+            paddingBottom: Math.max(insets.bottom + 16, 16),
+          }}
+        >
+          {children}
+        </View>
       )}
     </View>
   );
@@ -186,7 +205,7 @@ export function SegmentedControl<T extends string>({
 export function StatGrid({
   items,
 }: {
-  items: Array<{ label: string; value: string; tone?: string; helper?: string }>;
+  items: { label: string; value: string; tone?: string; helper?: string }[];
 }) {
   const appearance = useAppStore((state) => state.appearance);
   const theme = getTheme(appearance);

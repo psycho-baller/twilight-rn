@@ -1,33 +1,31 @@
 import { router } from "expo-router";
 import { Text, View } from "react-native";
 
-import { AppScreen, GlassCard, PrimaryButton, SectionTitle } from "@/components/ui";
-import { getTheme } from "@/lib/theme";
-import { useAppStore } from "@/lib/store";
+import { GlassPanel, NativeScreen, SectionHeader, TwilightButton, useTwilightTheme } from "@/ui/surface";
 
 export default function MetricsGuideModal() {
-  const appearance = useAppStore((state) => state.appearance);
-  const theme = getTheme(appearance);
+  const { theme } = useTwilightTheme();
 
   return (
-    <AppScreen>
-      <SectionTitle title="Metrics Guide" subtitle="How Twilight reads your nights and scores your rhythm." />
-      <GlassCard>
-        <View className="gap-4">
+    <NativeScreen>
+      <SectionHeader title="Metrics Guide" subtitle="How Twilight reads your nights and scores your rhythm." />
+      <GlassPanel>
+        <View style={{ gap: 14 }}>
           {[
             "Sleep consistency measures bedtime stability.",
             "Wake consistency measures wake-time stability.",
             "Accuracy compares actual bedtime and wake time with your configured targets.",
             "Moving averages smooth short-term noise into a more useful trend.",
             "Sleep debt accumulates the gap between your goal duration and actual sleep each night.",
+            "Alignment score blends duration, timing, phase, and consistency into the SwiftUI-style score chart.",
           ].map((item) => (
-            <Text key={item} style={{ color: theme.textPrimary }} className="text-base leading-7">
+            <Text key={item} style={{ color: theme.textPrimary, fontSize: 15, lineHeight: 23 }}>
               • {item}
             </Text>
           ))}
         </View>
-      </GlassCard>
-      <PrimaryButton title="Close" onPress={() => router.back()} />
-    </AppScreen>
+      </GlassPanel>
+      <TwilightButton title="Close" onPress={() => router.back()} />
+    </NativeScreen>
   );
 }
