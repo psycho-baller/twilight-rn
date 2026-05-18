@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Fragment } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   type ViewStyle,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useTwilightTheme } from "@/ui/surface";
 
@@ -38,6 +39,8 @@ export function NativeFieldSection({
   children: React.ReactNode;
 }) {
   const { theme } = useTwilightTheme();
+  const childrenArray = React.Children.toArray(children).filter(Boolean);
+
   return (
     <View style={styles.fieldSection}>
       {title ? (
@@ -46,7 +49,14 @@ export function NativeFieldSection({
         </Text>
       ) : null}
       <View style={[styles.sectionContent, { backgroundColor: theme.glass, borderColor: theme.outline }]}>
-        {children}
+        {childrenArray.map((child, index) => (
+          <Fragment key={index}>
+            {child}
+            {index < childrenArray.length - 1 && (
+              <View style={[styles.divider, { backgroundColor: theme.outline }]} />
+            )}
+          </Fragment>
+        ))}
       </View>
       {footer ? (
         <Text style={[styles.sectionFooter, { color: theme.textSecondary }]}>{footer}</Text>
@@ -78,7 +88,6 @@ export function NativeRow({
       style={({ pressed }: any) => [
         styles.row,
         pressed && styles.rowPressed,
-        { borderBottomColor: theme.outline },
       ]}
     >
       <View style={styles.rowLabel}>
@@ -87,7 +96,12 @@ export function NativeRow({
           <Text style={[styles.rowSubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
         ) : null}
       </View>
-      {trailing ? <View style={styles.rowTrailing}>{trailing}</View> : null}
+      <View style={styles.rowTrailingContainer}>
+        {trailing}
+        {onPress && !trailing && (
+          <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+        )}
+      </View>
     </Container>
   );
 }
@@ -287,6 +301,7 @@ export const NativeScreen = View;
 const styles = StyleSheet.create({
   fieldGroup: {
     gap: 20,
+    marginVertical: 10,
   },
   fieldSection: {
     gap: 8,
@@ -302,11 +317,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+  },
   sectionFooter: {
     fontSize: 12,
     marginLeft: 16,
     marginRight: 16,
     lineHeight: 16,
+    opacity: 0.8,
   },
   row: {
     flexDirection: "row",
@@ -315,10 +335,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     minHeight: 52,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowPressed: {
-    opacity: 0.7,
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   rowLabel: {
     flex: 1,
@@ -330,8 +349,12 @@ const styles = StyleSheet.create({
   },
   rowSubtitle: {
     fontSize: 13,
+    opacity: 0.7,
   },
-  rowTrailing: {
+  rowTrailingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginLeft: 12,
   },
   actionButton: {

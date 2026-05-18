@@ -1,6 +1,8 @@
-import { Pressable, Text, View } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useMemo, useState } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
 
-import { formatClock, formatDuration, formatHours } from "@/lib/format";
+import { dateFromMinutes, formatClock, formatDuration, formatHours, minutesFromDate } from "@/lib/format";
 import type {
   DailySleepData,
   SleepAlignmentScorePoint,
@@ -358,38 +360,78 @@ export function SleepWindowDialChart({
         <Text style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12 }}>sleep duration</Text>
       </View>
       <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
-        <DialTimeControl label="Bedtime" value={sleepMinutes} color={palette.indigo} onChange={onSleepChange} />
-        <DialTimeControl label="Wake up" value={wakeMinutes} color={palette.orange} onChange={onWakeChange} />
+        <NativeTimeControl label="Bedtime" icon="☾" value={sleepMinutes} color={palette.indigo} onChange={onSleepChange} />
+        <NativeTimeControl label="Wake up" icon="☀" value={wakeMinutes} color={palette.orange} onChange={onWakeChange} />
       </View>
       <FallbackNotice />
     </GlassPanel>
   );
 }
 
-function DialTimeControl({
+function NativeTimeControl({
   label,
+  icon,
   value,
   color,
   onChange,
 }: {
   label: string;
+  icon: string;
   value: number;
   color: string;
   onChange: (value: number) => void;
 }) {
   const { theme } = useTwilightTheme();
+  const dateValue = useMemo(() => dateFromMinutes(value), [value]);
+  const [showAndroidPicker, setShowAndroidPicker] = useState(false);
+
   return (
-    <View style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: color, backgroundColor: theme.glass, padding: 12, gap: 8 }}>
-      <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: theme.textPrimary, fontSize: 20, fontWeight: "800" }}>{formatClock(value)}</Text>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Pressable onPress={() => onChange((value + 24 * 60 - 15) % (24 * 60))} style={{ flex: 1 }}>
-          <Text style={{ color, fontWeight: "800" }}>-15m</Text>
-        </Pressable>
-        <Pressable onPress={() => onChange((value + 15) % (24 * 60))} style={{ flex: 1 }}>
-          <Text style={{ color, textAlign: "right", fontWeight: "800" }}>+15m</Text>
-        </Pressable>
+    <View style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: color, backgroundColor: theme.glass, padding: 12, gap: 6 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Text style={{ color, fontSize: 14 }}>{icon}</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "600" }}>{label}</Text>
       </View>
+      {Platform.OS === "ios" ? (
+        <DateTimePicker
+          value={dateValue}
+          mode="time"
+          display="compact"
+          minuteInterval={5}
+          accentColor={color}
+          onValueChange={(date) => {
+            if (date) onChange(minutesFromDate(date));
+          }}
+        />
+      ) : (
+        <>
+          <Pressable
+            onPress={() => setShowAndroidPicker(true)}
+            style={{
+              backgroundColor: `${color}22`,
+              borderRadius: 10,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              alignSelf: "flex-start",
+            }}
+          >
+            <Text style={{ color: theme.textPrimary, fontSize: 20, fontWeight: "800" }}>
+              {formatClock(value)}
+            </Text>
+          </Pressable>
+          {showAndroidPicker ? (
+            <DateTimePicker
+              value={dateValue}
+              mode="time"
+              display="spinner"
+              minuteInterval={5}
+              onValueChange={(date) => {
+                if (date) onChange(minutesFromDate(date));
+              }}
+              onDismiss={() => setShowAndroidPicker(false)}
+            />
+          ) : null}
+        </>
+      )}
     </View>
   );
 }

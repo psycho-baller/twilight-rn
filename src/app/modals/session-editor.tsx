@@ -1,4 +1,4 @@
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Text, TextInput } from "react-native";
@@ -81,11 +81,9 @@ export default function SessionEditorModal() {
     router.back();
   }
 
-  function onDateChange(event: DateTimePickerEvent, date?: Date) {
+  function onDateChange(date: Date) {
     setShowDatePicker(false);
-    if (event.type === "set" && date) {
-      setSessionDay(startOfDay(date));
-    }
+    setSessionDay(startOfDay(date));
   }
 
   return (
@@ -102,7 +100,7 @@ export default function SessionEditorModal() {
           subtle
           onPress={() => setShowDatePicker(true)}
         />
-        {showDatePicker ? <DateTimePicker value={sessionDay} mode="date" onChange={onDateChange} /> : null}
+        {showDatePicker ? <DateTimePicker value={sessionDay} mode="date" onValueChange={onDateChange} onDismiss={() => setShowDatePicker(false)} /> : null}
         <MetricGrid>
           <MetricCard title="Goal Match" value={`${goalMatchScore}%`} subtitle={`${averageGoalDeviationMinutes}m avg drift`} icon="◎" tint={goalMatchScore >= 80 ? palette.green : palette.orange} />
           <MetricCard title="Duration" value={formatDurationLong(durationSeconds)} subtitle="sleep window" icon="◒" tint={palette.cyan} />
