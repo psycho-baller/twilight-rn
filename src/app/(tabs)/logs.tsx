@@ -1,4 +1,3 @@
-import { Host } from "@expo/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo } from "react";
@@ -6,7 +5,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { formatDay, formatDuration, formatTime } from "@/lib/format";
 import { selectSleepProfile, useAppStore } from "@/lib/store";
-import { NativeFieldGroup, NativeFieldSection, NativeRow } from "@/ui/native";
+import { NativeFieldGroup, NativeFieldSection, NativeHost, NativeRow } from "@/ui/native";
 import {
   EmptyPanel,
   GlassPanel,
@@ -86,7 +85,7 @@ export default function LogsRoute() {
                 const end = new Date(session.endTime!);
                 const duration = formatDuration((end.getTime() - start.getTime()) / 1000);
                 return (
-                  <Host key={session.id} matchContents>
+                  <NativeHost key={session.id}>
                     <View style={{ paddingHorizontal: 10 }}>
                       <Pressable
                         onPress={() =>
@@ -127,7 +126,7 @@ export default function LogsRoute() {
                         />
                       </View>
                     </View>
-                  </Host>
+                  </NativeHost>
                 );
               })}
             </NativeFieldSection>

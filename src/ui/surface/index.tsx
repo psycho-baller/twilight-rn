@@ -10,7 +10,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { formatHours } from "@/lib/format";
 import { getTheme, type AppTheme } from "@/lib/theme";
@@ -48,13 +48,13 @@ export function NativeScreen({
   contentStyle?: ViewStyle;
 }) {
   const insets = useSafeAreaInsets();
-  const scrollTopPadding = process.env.EXPO_OS === "ios" ? 10 : Math.max(insets.top + 8, 20);
-  const scrollBottomPadding = process.env.EXPO_OS === "ios" ? 24 : Math.max(insets.bottom + 96, 116);
-  const fixedTopPadding = Math.max(insets.top + 10, 24);
-  const fixedBottomPadding = Math.max(insets.bottom + 16, 24);
+  const scrollTopPadding = process.env.EXPO_OS === "ios" ? 10 : 8;
+  const scrollBottomPadding = process.env.EXPO_OS === "ios" ? 24 : 96;
+  const fixedTopPadding = 10;
+  const fixedBottomPadding = 16;
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
       <TwilightBackground />
       {scroll ? (
         <ScrollView
@@ -88,7 +88,7 @@ export function NativeScreen({
           {children}
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

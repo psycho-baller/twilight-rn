@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 
 import { formatClock, formatDuration, formatHours, formatTime } from "@/lib/format";
@@ -36,10 +36,11 @@ export function AppScreen({
   const appearance = useAppStore((state) => state.appearance);
   const theme = getTheme(appearance);
   const insets = useSafeAreaInsets();
-  const topPadding = Math.max(insets.top + 8, 18);
-  const bottomPadding = Math.max(insets.bottom + 96, 112);
-  const content = (
-    <View style={{ flex: 1 }}>
+  const topPadding = 8;
+  const bottomPadding = 96;
+
+  return (
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
       <LinearGradient
         colors={[theme.backgroundStart, theme.backgroundEnd]}
         style={StyleSheet.absoluteFill}
@@ -64,17 +65,15 @@ export function AppScreen({
           style={{
             flex: 1,
             paddingHorizontal: 16,
-            paddingTop: Math.max(insets.top + 8, 16),
-            paddingBottom: Math.max(insets.bottom + 16, 16),
+            paddingTop: 8,
+            paddingBottom: 16,
           }}
         >
           {children}
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
-
-  return content;
 }
 
 export function GlassCard({

@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getTheme } from "@/lib/theme";
 import { useAppStore } from "@/lib/store";
@@ -16,7 +17,7 @@ export default function IndexRoute() {
   }, [isOnboarded]);
 
   return (
-    <View
+    <SafeAreaView
       style={{
         flex: 1,
         alignItems: "center",
@@ -35,6 +36,6 @@ export default function IndexRoute() {
       >
         Opening Twilight…
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }

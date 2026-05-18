@@ -10,13 +10,87 @@ import {
   TextInput as ExpoTextInput,
   useNativeState,
 } from "@expo/ui";
-import { View, type ViewStyle } from "react-native";
+import { createContext, useContext, Children, isValidElement } from "react";
+import { Platform, View, type ViewStyle } from "react-native";
 
-import { useTwilightTheme } from "@/ui/surface";
+// We use NativeTreeContext to track if we are already inside a SwiftUI/Compose tree.
+// If we are, we don't need another Host, and we must wrap RN children in RNHostView.
+const NativeTreeContext = createContext(false);
 
-// We use Host to wrap SwiftUI trees so they can be embedded in React Native.
-// Inside a hosted tree (like NativeFieldGroup), we use ExpoRow/ExpoColumn/ExpoText 
-// to stay in the native hierarchy and avoid dropping children.
+/**
+ * Universal RNHostView that bridges React Native components into the native hierarchy.
+ * On iOS, this uses RNHostView from @expo/ui/swift-ui.
+ */
+function UniversalRNHostView({ children }: { children: React.ReactNode }) {
+  if (Platform.OS === "ios") {
+    let RNHostView: any;
+    try {
+      // Use dynamic require to avoid bundling issues on other platforms
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const uiSwiftUI = require("@expo/ui/swift-ui");
+      RNHostView = uiSwiftUI.RNHostView;
+    } catch (e) {
+      console.error("Failed to load RNHostView from @expo/ui/swift-ui", e);
+      return <>{children}</>;
+    }
+
+    if (!RNHostView) return <>{children}</>;
+
+    return (
+      <RNHostView matchContents>
+        {isValidElement(children) ? children : <View>{children}</View>}
+      </RNHostView>
+    );
+  }
+
+  if (Platform.OS === "android") {
+    let RNHostView: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const uiCompose = require("@expo/ui/jetpack-compose");
+      RNHostView = uiCompose.RNHostView;
+    } catch {
+      return <>{children}</>;
+    }
+
+    if (!RNHostView) return <>{children}</>;
+
+    return (
+      <RNHostView matchContents>
+        {isValidElement(children) ? children : <View>{children}</View>}
+      </RNHostView>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * Use this to wrap standard React Native views when they are children of a native container (like FieldSection).
+ */
+export function NativeHost({ children }: { children: React.ReactNode }) {
+  const isInside = useContext(NativeTreeContext);
+  if (!isInside) return <>{children}</>;
+  return <UniversalRNHostView>{children}</UniversalRNHostView>;
+}
+
+/**
+ * Ensures SwiftUI/Compose views have a Host when used outside a native tree,
+ * and passes through when already hosted.
+ */
+function NativeBoundary({ children, matchContents, style }: { children: React.ReactNode; matchContents?: boolean; style?: ViewStyle }) {
+  const isInside = useContext(NativeTreeContext);
+  if (isInside) {
+    return <>{children}</>;
+  }
+  return (
+    <Host matchContents={matchContents} style={style}>
+      <NativeTreeContext.Provider value={true}>
+        {children}
+      </NativeTreeContext.Provider>
+    </Host>
+  );
+}
 
 export function NativeFieldGroup({
   children,
@@ -26,9 +100,11 @@ export function NativeFieldGroup({
   style?: ViewStyle;
 }) {
   return (
-    <Host style={style} matchContents>
-      <ExpoFieldGroup style={{ backgroundColor: "transparent" }}>{children}</ExpoFieldGroup>
-    </Host>
+    <NativeBoundary style={style}>
+      <ExpoFieldGroup style={{ backgroundColor: "transparent" }}>
+        {children}
+      </ExpoFieldGroup>
+    </NativeBoundary>
   );
 }
 
@@ -41,13 +117,23 @@ export function NativeFieldSection({
   footer?: string;
   children: React.ReactNode;
 }) {
-  const { theme } = useTwilightTheme();
+  // Every child of a native Section MUST be wrapped in RNHostView if it's a React component.
+  // We do this automatically here to restore the "missing" sections.
+  const childrenWithHosting = Children.map(children, (child) => {
+    if (!child) return null;
+    return <NativeHost>{child}</NativeHost>;
+  });
+
   return (
     <ExpoFieldGroup.Section title={title} titleUppercase>
-      {children}
+      {childrenWithHosting}
       {footer ? (
         <ExpoFieldGroup.SectionFooter>
-          <ExpoText style={{ color: theme.textSecondary, fontSize: 12 }}>{footer}</ExpoText>
+          <NativeHost>
+            <View>
+              <ExpoText style={{ opacity: 0.65 }}>{footer}</ExpoText>
+            </View>
+          </NativeHost>
         </ExpoFieldGroup.SectionFooter>
       ) : null}
     </ExpoFieldGroup.Section>
@@ -65,28 +151,28 @@ export function NativeRow({
   trailing?: React.ReactNode;
   onPress?: () => void;
 }) {
-  const { theme } = useTwilightTheme();
-  // We wrap in Host to ensure it can be used both inside and outside other hosted components.
-  // matchContents ensures it doesn't take up more space than its native content needs.
-  return (
-    <Host matchContents>
-      <ExpoRow alignment="center" onPress={onPress} style={{ paddingVertical: 8 }}>
-        <ExpoColumn spacing={3} style={{ flex: 1, paddingRight: 8 }}>
-          <ExpoText style={{ color: theme.textPrimary, fontSize: 15, fontWeight: "700" }}>
-            {title}
+  const isInside = useContext(NativeTreeContext);
+
+  const content = (
+    <ExpoRow alignment="center" onPress={onPress} style={{ paddingVertical: 8 }}>
+      <ExpoColumn spacing={3} style={{ paddingRight: 8 }}>
+        <ExpoText style={{ opacity: 0.9 }}>
+          {title}
+        </ExpoText>
+        {subtitle ? (
+          <ExpoText style={{ opacity: 0.6 }}>
+            {subtitle}
           </ExpoText>
-          {subtitle ? (
-            <ExpoText style={{ color: theme.textSecondary, fontSize: 12 }}>
-              {subtitle}
-            </ExpoText>
-          ) : null}
-        </ExpoColumn>
-        {trailing ? (
-          <Host matchContents>{trailing}</Host>
         ) : null}
-      </ExpoRow>
-    </Host>
+      </ExpoColumn>
+      {trailing ? (
+        <NativeBoundary matchContents>{trailing}</NativeBoundary>
+      ) : null}
+    </ExpoRow>
   );
+
+  if (isInside) return content;
+  return <NativeBoundary matchContents>{content}</NativeBoundary>;
 }
 
 export function NativeSwitchRow({
@@ -123,9 +209,9 @@ export function NativeActionButton({
   disabled?: boolean;
 }) {
   return (
-    <Host matchContents>
+    <NativeBoundary matchContents>
       <ExpoButton label={title} onPress={onPress} variant={variant} disabled={disabled} />
-    </Host>
+    </NativeBoundary>
   );
 }
 
@@ -169,14 +255,13 @@ export function NativeSegmentedControl<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
-  const { theme } = useTwilightTheme();
   return (
     <View style={{ flexDirection: "row", gap: 6 }}>
       {options.map((option) => {
         const selected = option === value;
         return (
           <View key={option} style={{ flex: 1 }}>
-            <Host matchContents>
+            <NativeBoundary matchContents>
               <ExpoButton
                 label={option}
                 variant={selected ? "filled" : "outlined"}
@@ -184,10 +269,9 @@ export function NativeSegmentedControl<T extends string>({
                 style={{
                   height: 34,
                   borderRadius: 16,
-                  backgroundColor: selected ? theme.accent : "transparent",
                 }}
               />
-            </Host>
+            </NativeBoundary>
           </View>
         );
       })}
@@ -209,6 +293,7 @@ export function NativePickerRow<T extends string>({
   return (
     <NativeRow
       title={title}
+      subtitle={value}
       trailing={
         <NativeSegmentedControl
           options={options}
@@ -247,11 +332,11 @@ export function NativeBottomSheet({
   onDismiss: () => void;
 }) {
   return (
-    <Host>
+    <NativeBoundary>
       <ExpoBottomSheet isPresented={isPresented} onDismiss={onDismiss} showDragIndicator>
         {children}
       </ExpoBottomSheet>
-    </Host>
+    </NativeBoundary>
   );
 }
 
