@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 
 import { dateFromMinutes, formatClock, formatDuration, formatHours, minutesFromDate } from "@/lib/format";
+import { calculateSleepConsistency, calculateWakeConsistency, calculateAccuracy } from "@/lib/sleep";
 import type {
   DailySleepData,
   SleepAlignmentScorePoint,
@@ -45,9 +46,10 @@ type BarDatum = {
   color?: string;
 };
 
-const font11 = matchFont({ fontSize: 11, fontWeight: "500" });
-const font12 = matchFont({ fontSize: 12, fontWeight: "600" });
-const font13 = matchFont({ fontSize: 13, fontWeight: "700" });
+const isAndroid = Platform.OS === "android";
+const font11 = matchFont({ fontFamily: isAndroid ? "sans-serif" : "System", fontSize: 11, fontWeight: "500" }) ?? matchFont({ fontSize: 11 });
+const font12 = matchFont({ fontFamily: isAndroid ? "sans-serif" : "System", fontSize: 12, fontWeight: "600" }) ?? matchFont({ fontSize: 12 });
+const font13 = matchFont({ fontFamily: isAndroid ? "sans-serif" : "System", fontSize: 13, fontWeight: "700" }) ?? matchFont({ fontSize: 13 });
 
 function makeLinePath(points: { x: number; y: number }[]) {
   const builder = Skia.PathBuilder.Make();
@@ -262,6 +264,20 @@ function BarChart({
   );
 }
 
+function formatTimeLabel(offset: number, showMinutes = false) {
+  const totalMinutes = Math.round((18 + offset) * 60);
+  let hour = Math.floor(totalMinutes / 60);
+  const min = totalMinutes % 60;
+  if (hour >= 24) hour -= 24;
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  
+  if (showMinutes || min > 0) {
+    return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
+  }
+  return `${displayHour} ${ampm}`;
+}
+
 export function WeeklySleepWindowChart({
   data,
   optimalSleepMinutes,
@@ -276,61 +292,165 @@ export function WeeklySleepWindowChart({
   const { theme } = useTwilightTheme();
   const palette = chartPalette(theme);
   const [selected, setSelected] = useState(Math.max(0, data.length - 1));
-  const domain: [number, number] = [0, 16];
-  const sleepTarget = ((optimalSleepMinutes / 60 + 24 - 18) % 24);
-  const wakeTarget = ((optimalWakeMinutes / 60 + 24 - 18) % 24);
+
+  const sleepTargetOffset = ((optimalSleepMinutes / 60 + 24 - 18) % 24);
+  const wakeTargetOffset = ((optimalWakeMinutes / 60 + 24 - 18) % 24);
+
+  const activeData = data.filter((d) => d.duration > 0);
+  const allValues = [
+    ...activeData.map((d) => d.startOffset),
+    ...activeData.map((d) => d.endOffset),
+    sleepTargetOffset,
+    wakeTargetOffset,
+  ];
+  let [minY, maxY] = allValues.length > 0
+    ? [Math.min(...allValues), Math.max(...allValues)]
+    : [4, 14];
+  
+  minY = Math.max(0, minY - 1);
+  maxY = Math.min(24, maxY + 1);
+  const domain: [number, number] = [minY, maxY];
+
+  const timeTicks: number[] = [];
+  for (let h = Math.floor(minY); h <= Math.ceil(maxY); h++) {
+    if (h % 2 === 0) timeTicks.push(h);
+  }
+
+  const avgDurationSeconds = activeData.length > 0
+    ? activeData.reduce((sum, d) => sum + d.duration, 0) / activeData.length
+    : 0;
+  const sleepCons = calculateSleepConsistency(data);
+  const wakeCons = calculateWakeConsistency(data);
+  const accuracy = calculateAccuracy(data, optimalSleepMinutes, optimalWakeMinutes);
 
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: "row", gap: 7 }}>
-        <InsightPill title="avg sleep" value={formatHours(targetDurationHours)} subtitle="goal duration" tint={palette.cyan} />
-        <InsightPill title="bedtime" value={formatClock(optimalSleepMinutes)} subtitle="target" tint={palette.indigo} />
-        <InsightPill title="wake" value={formatClock(optimalWakeMinutes)} subtitle="target" tint={palette.orange} />
-        <InsightPill title="nights" value={`${data.filter((item) => item.duration > 0).length}`} subtitle="week" tint={palette.green} />
+        <InsightPill title="avg sleep" value={formatHours(avgDurationSeconds / 3600)} subtitle="last 7 nights" tint={palette.cyan} />
+        <InsightPill title="sleep cons." value={`${sleepCons}%`} subtitle="bedtime rhythm" tint={palette.indigo} />
+        <InsightPill title="wake cons." value={`${wakeCons}%`} subtitle="wake rhythm" tint={palette.orange} />
+        <InsightPill title="accuracy" value={`${accuracy}%`} subtitle="target match" tint={palette.green} />
       </View>
       <ChartCanvas
         height={245}
         onSelect={(x) => {
-          const bounds = chartBounds({ ...DEFAULT_FRAME, width: 320, height: 245 });
+          const bounds = chartBounds({ ...DEFAULT_FRAME, paddingRight: 40, width: 320, height: 245 });
           const relative = ((x - bounds.left) / Math.max(1, bounds.width)) * Math.max(1, data.length - 1);
           setSelected(clampChart(Math.round(relative), 0, Math.max(0, data.length - 1)));
         }}
       >
         {(frame) => {
-          const bounds = chartBounds(frame);
+          const frameWithPadding = { ...frame, paddingRight: 45, paddingLeft: 30 };
+          const bounds = chartBounds(frameWithPadding);
           const slot = bounds.width / Math.max(1, data.length);
           const barWidth = Math.min(25, slot * 0.56);
+          const collisionThreshold = 31 / 60;
+          
           return (
             <Group>
-              <AxisGrid frame={frame} yTicks={[0, 4, 8, 12]} yDomain={domain} />
-              {[sleepTarget, wakeTarget, targetDurationHours].map((value, index) => {
-                const y = linearScale(value, domain, [bounds.bottom, bounds.top]);
+              {[0, 4, 8, 12].map(durationTick => {
+                const y = linearScale(durationTick, [0, 12], [bounds.bottom, bounds.top]);
+                const clashDuration = Math.abs(durationTick - targetDurationHours) < collisionThreshold;
                 return (
-                  <Line
-                    key={`${value}-${index}`}
-                    p1={vec(bounds.left, y)}
-                    p2={vec(bounds.right, y)}
-                    color={index === 0 ? palette.indigo : index === 1 ? palette.orange : "rgba(255,255,255,0.38)"}
-                    strokeWidth={1.5}
-                  />
+                  <Group key={`dur-${durationTick}`}>
+                    <Line p1={vec(bounds.left, y)} p2={vec(bounds.right, y)} color={palette.grid} strokeWidth={1} />
+                    {!clashDuration && (
+                      <SkiaText text={`${durationTick}h`} x={4} y={y + 4} font={font11} color={palette.label} />
+                    )}
+                  </Group>
                 );
               })}
+
+              {timeTicks.map(timeTick => {
+                const y = linearScale(timeTick, domain, [bounds.top, bounds.bottom]);
+                const clashSleep = Math.abs(timeTick - sleepTargetOffset) < collisionThreshold;
+                const clashWake = Math.abs(timeTick - wakeTargetOffset) < collisionThreshold;
+                
+                return (
+                  <Group key={`time-${timeTick}`}>
+                    {!clashSleep && !clashWake && (
+                       <SkiaText text={formatTimeLabel(timeTick)} x={bounds.right + 6} y={y + 4} font={font11} color={palette.cyan} />
+                    )}
+                  </Group>
+                );
+              })}
+
+              {(() => {
+                const targetY = linearScale(targetDurationHours, [0, 12], [bounds.bottom, bounds.top]);
+                const dashes = [];
+                for (let i = bounds.left; i < bounds.right; i += 8) {
+                  dashes.push(<Line key={`dur-dash-${i}`} p1={vec(i, targetY)} p2={vec(Math.min(i + 4, bounds.right), targetY)} color="rgba(255,255,255,0.4)" strokeWidth={1.5} />);
+                }
+                return (
+                  <Group>
+                    <Group>{dashes}</Group>
+                    <SkiaText text={`${targetDurationHours.toFixed(1)}h`} x={bounds.left + 2} y={targetY - 4} font={font11} color="rgba(255,255,255,0.6)" />
+                  </Group>
+                );
+              })()}
+
+              {(() => {
+                const points = data.map((item, index) => {
+                   const x = bounds.left + slot * index + slot / 2;
+                   const y = linearScale(item.duration / 3600, [0, 12], [bounds.bottom, bounds.top]);
+                   return {x, y, valid: item.duration > 0};
+                }).filter(p => p.valid);
+                if (points.length === 0) return null;
+                const path = makeLinePath(points);
+                return (
+                  <Group>
+                    <Path path={path} color="rgba(255,255,255,0.15)" style="stroke" strokeWidth={2} />
+                    {points.map((p, i) => (
+                       <Circle key={`point-${i}`} cx={p.x} cy={p.y} r={3} color="rgba(255,255,255,0.3)" />
+                    ))}
+                  </Group>
+                );
+              })()}
+
+              {(() => {
+                const sleepY = linearScale(sleepTargetOffset, domain, [bounds.top, bounds.bottom]);
+                const wakeY = linearScale(wakeTargetOffset, domain, [bounds.top, bounds.bottom]);
+                
+                const sleepDashes = [];
+                const wakeDashes = [];
+                for (let i = bounds.left; i < bounds.right; i += 8) {
+                  sleepDashes.push(<Line key={`sleep-dash-${i}`} p1={vec(i, sleepY)} p2={vec(Math.min(i + 4, bounds.right), sleepY)} color={palette.indigo} strokeWidth={1.5} />);
+                  wakeDashes.push(<Line key={`wake-dash-${i}`} p1={vec(i, wakeY)} p2={vec(Math.min(i + 4, bounds.right), wakeY)} color={palette.orange} strokeWidth={1.5} />);
+                }
+                
+                return (
+                  <Group>
+                    <Group>{sleepDashes}</Group>
+                    <SkiaText text={formatTimeLabel(sleepTargetOffset, true)} x={bounds.right + 6} y={sleepY - 4} font={font11} color={palette.indigo} />
+                    
+                    <Group>{wakeDashes}</Group>
+                    <SkiaText text={formatTimeLabel(wakeTargetOffset, true)} x={bounds.right + 6} y={wakeY - 4} font={font11} color={palette.orange} />
+                  </Group>
+                );
+              })()}
+
               {data.map((item, index) => {
                 const x = bounds.left + slot * index + (slot - barWidth) / 2;
-                const start = item.duration > 0 ? item.startOffset : 0;
-                const end = item.duration > 0 ? item.endOffset : 0;
-                const top = linearScale(Math.max(start, end), domain, [bounds.bottom, bounds.top]);
-                const bottom = linearScale(Math.min(start, end), domain, [bounds.bottom, bounds.top]);
+                const top = item.duration > 0 ? linearScale(item.startOffset, domain, [bounds.top, bounds.bottom]) : 0;
+                const bottom = item.duration > 0 ? linearScale(item.endOffset, domain, [bounds.top, bounds.bottom]) : 0;
+                const yTop = Math.min(top, bottom);
+                const yBottom = Math.max(top, bottom);
+
                 return (
                   <Group key={`${item.dayLabel}-${index}`}>
-                    <RoundedRect
-                      x={x}
-                      y={top}
-                      width={barWidth}
-                      height={Math.max(8, bottom - top)}
-                      r={5}
-                      color={index === selected ? palette.cyan : "rgba(0,212,255,0.78)"}
-                    />
+                    {item.duration > 0 ? (
+                      <RoundedRect
+                        x={x}
+                        y={yTop}
+                        width={barWidth}
+                        height={Math.max(8, yBottom - yTop)}
+                        r={5}
+                        color={index === selected ? palette.cyan : "rgba(0,212,255,0.78)"}
+                      />
+                    ) : null}
+                    {index === selected ? (
+                      <Line p1={vec(x + barWidth / 2, bounds.top)} p2={vec(x + barWidth / 2, bounds.bottom)} color="rgba(255,255,255,0.15)" strokeWidth={1} />
+                    ) : null}
                     <SkiaText text={item.dayLabel.slice(0, 3)} x={x - 1} y={frame.height - 18} font={font11} color={palette.label} />
                     <SkiaText text={item.duration > 0 ? formatHours(item.duration / 3600) : "-"} x={x - 2} y={frame.height - 5} font={font11} color={palette.label} />
                   </Group>
@@ -510,12 +630,87 @@ export function SleepAlignmentChart({
   series: SleepAlignmentScorePoint[];
   coreOnly?: boolean;
 }) {
-  const data = series.map((point) => ({
-    label: point.date.toLocaleDateString([], { month: "short", day: "numeric" }),
-    value: coreOnly ? point.coreScore : point.dailyScore,
-    helper: `duration ${Math.round(point.durationScore)}%`,
-  }));
-  return <LineChart data={data} yDomain={[40, 100]} yTicks={[40, 60, 80, 100]} target={70} suffix="%" color={coreOnly ? "#00D4FF" : "#00FF88"} />;
+  const { theme } = useTwilightTheme();
+  const palette = chartPalette(theme);
+  const targetScore = 70;
+
+  const displayPoints = useMemo(() => {
+    let previousTrend: number | null = null;
+    return series.map((point) => {
+      const daily = coreOnly ? point.coreScore : point.dailyScore;
+      const trend = previousTrend != null ? 0.8 * previousTrend + 0.2 * daily : daily;
+      previousTrend = trend;
+      return {
+        ...point,
+        displayDaily: daily,
+        displayTrend: trend,
+      };
+    });
+  }, [series, coreOnly]);
+
+  const yDomain: [number, number] = [0, 100];
+  const yTicks = [0, 25, 50, 70, 100];
+
+  return (
+    <ChartCanvas height={245}>
+      {(frame) => {
+        const bounds = chartBounds(frame);
+        const slot = bounds.width / Math.max(1, displayPoints.length);
+        const barWidth = Math.min(25, slot * 0.56);
+
+        return (
+          <Group>
+            <AxisGrid frame={frame} yTicks={yTicks} yDomain={yDomain} />
+
+            {(() => {
+               const targetY = linearScale(targetScore, yDomain, [bounds.bottom, bounds.top]);
+               const dashes = [];
+               for (let i = bounds.left; i < bounds.right; i += 8) {
+                 dashes.push(<Line key={`target-dash-${i}`} p1={vec(i, targetY)} p2={vec(Math.min(i + 4, bounds.right), targetY)} color="rgba(52, 199, 89, 0.65)" strokeWidth={1.2} />);
+               }
+               return <Group>{dashes}</Group>;
+            })()}
+
+            {displayPoints.map((point, index) => {
+              const x = bounds.left + slot * index + (slot - barWidth) / 2;
+              const y = linearScale(point.displayDaily, yDomain, [bounds.bottom, bounds.top]);
+              const color = point.displayDaily >= targetScore ? "rgba(52, 199, 89, 0.68)" : "rgba(255, 149, 0, 0.65)";
+              return (
+                <RoundedRect
+                  key={`bar-${index}`}
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={Math.max(2, bounds.bottom - y)}
+                  r={4}
+                  color={color}
+                />
+              );
+            })}
+
+            {(() => {
+               if (displayPoints.length === 0) return null;
+               const path = Skia.Path.Make();
+               displayPoints.forEach((point, index) => {
+                 const x = bounds.left + slot * index + slot / 2;
+                 const y = linearScale(point.displayTrend, yDomain, [bounds.bottom, bounds.top]);
+                 if (index === 0) path.moveTo(x, y);
+                 else path.lineTo(x, y);
+               });
+               return <Path path={path} color={palette.cyan} style="stroke" strokeWidth={3} />;
+            })()}
+
+            {displayPoints.map((point, index) => {
+              if (index % Math.ceil(displayPoints.length / 4) !== 0 && index !== displayPoints.length - 1) return null;
+              const x = bounds.left + slot * index + slot / 2;
+              const label = point.date.toLocaleDateString([], { month: "short", day: "numeric" });
+              return <SkiaText key={`label-${index}`} text={label} x={x - 15} y={frame.height - 9} font={font11} color={palette.label} />;
+            })}
+          </Group>
+        );
+      }}
+    </ChartCanvas>
+  );
 }
 
 export function TimingTimelineChart({ series }: { series: SleepTimingPoint[] }) {
