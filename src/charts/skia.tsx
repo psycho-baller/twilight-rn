@@ -324,7 +324,7 @@ export function WeeklySleepWindowChart({
   const accuracy = calculateAccuracy(data, optimalSleepMinutes, optimalWakeMinutes);
 
   return (
-    <View style={{ gap: 10 }}>
+    <View style={{ gap: 6 }}>
       <View style={{ flexDirection: "row", gap: 7 }}>
         <InsightPill title="avg sleep" value={formatHours(avgDurationSeconds / 3600)} subtitle="last 7 nights" tint={palette.cyan} />
         <InsightPill title="sleep cons." value={`${sleepCons}%`} subtitle="bedtime rhythm" tint={palette.indigo} />
@@ -697,17 +697,17 @@ export function SleepAlignmentChart({
   const weakestComponent = components.reduce((min, c) => c.score < min.score ? c : min, components[0]);
 
   const MetricBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 }}>
       <Text style={{ color: theme.textSecondary, fontSize: 13, width: 85 }}>{label}</Text>
       <View style={{ flex: 1, height: 4, backgroundColor: theme.outline, borderRadius: 2, overflow: "hidden" }}>
         <View style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: "100%", backgroundColor: color, borderRadius: 2 }} />
       </View>
-      <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "600", width: 25, textAlign: "right", fontVariant: ["tabular-nums"] }}>{Math.round(value)}</Text>
+      <Text style={{ color: theme.textPrimary, fontSize: 13, fontWeight: "600", width: 28, textAlign: "right", fontVariant: ["tabular-nums"] }}>{Math.round(value)}</Text>
     </View>
   );
 
   return (
-    <View style={{ gap: 16 }}>
+    <View style={{ gap: 6 }}>
       <View style={{ flexDirection: "row", gap: 7 }}>
         <InsightPill 
           title="DAILY" 
@@ -723,13 +723,13 @@ export function SleepAlignmentChart({
         />
         <InsightPill 
           title="MAIN DRAG" 
-          value={weakestComponent.title.slice(0, 9) + (weakestComponent.title.length > 9 ? "..." : "")} 
+          value={weakestComponent.title} 
           subtitle={`${Math.round(weakestComponent.score)}`} 
           tint={weakestComponent.tint} 
         />
         <InsightPill 
-          title={`🔥 ${currentTargetStreak}`} 
-          value="" 
+          title=" " 
+          value={`🔥 ${currentTargetStreak}`} 
           subtitle={bestTargetStreak > 0 ? `best ${bestTargetStreak}d` : "hit 70+"} 
           tint={palette.orange} 
         />
@@ -821,8 +821,8 @@ export function SleepAlignmentChart({
       }}
     </ChartCanvas>
 
-    <View style={{ gap: 8, marginTop: 4, paddingHorizontal: 4 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+    <View style={{ gap: 2, marginTop: 4, paddingHorizontal: 4 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
           {pointToDisplay.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
         </Text>
