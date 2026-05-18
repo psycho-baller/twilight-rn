@@ -58,7 +58,6 @@ function RootContent() {
         <Stack.Screen name="modals/timing-sheet" options={{ presentation: "modal" }} />
         <Stack.Screen name="modals/support" options={{ presentation: "modal" }} />
         <Stack.Screen name="modals/data-management" options={{ presentation: "modal" }} />
-        <Stack.Screen name="modals/emergency" options={{ presentation: "modal" }} />
       </Stack>
 
       {currentErrorMessage ? (

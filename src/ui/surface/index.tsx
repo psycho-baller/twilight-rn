@@ -47,7 +47,6 @@ export function NativeScreen({
   scroll?: boolean;
   contentStyle?: ViewStyle;
 }) {
-  const insets = useSafeAreaInsets();
   const scrollTopPadding = process.env.EXPO_OS === "ios" ? 10 : 8;
   const scrollBottomPadding = process.env.EXPO_OS === "ios" ? 24 : 96;
   const fixedTopPadding = 10;

@@ -1,12 +1,7 @@
 import demoBackup from "../../assets/demo-backup.json";
 
-import { DEMO_PROFILE_ID } from "@/lib/constants";
 import { getDemoRestoreState, setDemoRestoreState } from "@/lib/db";
 import { exportArchiveJson, importArchiveJson, restoreFromBackupJson } from "@/lib/archive";
-
-export function isDemoProfile(profileId: string | null) {
-  return profileId === DEMO_PROFILE_ID;
-}
 
 export async function importDemoData() {
   const backupArchiveJson = await exportArchiveJson();

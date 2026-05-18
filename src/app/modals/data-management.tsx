@@ -44,11 +44,9 @@ export default function DataManagementModal() {
       Alert.alert(
         "Import Backup",
         [
-          `Profiles: ${preview.profileCount} total, ${preview.newProfiles} new, ${preview.updatedProfiles} updated.`,
           `Sessions: ${preview.sessionCount} total, ${preview.newSessions} new, ${preview.updatedSessions} updated.`,
           preview.settingsChanges > 0 ? `Sleep settings changes: ${preview.settingsChanges}.` : "",
           preview.appearanceChanges > 0 ? `Appearance changes: ${preview.appearanceChanges}.` : "",
-          preview.hasActiveSessionConflict ? "There is an active session conflict; the local active session remains authoritative." : "",
         ]
           .filter(Boolean)
           .join("\n"),

@@ -3,72 +3,15 @@ export type ISODateString = string;
 export type ThemeMode = "System" | "Sunset" | "Night Sky";
 export type ColorPalette = "Twilight" | "Amethyst";
 
-export type BlockingStrategyId =
-  | "ManualBlockingStrategy"
-  | "NFCBlockingStrategy"
-  | "NFCManualBlockingStrategy"
-  | "NFCTimerBlockingStrategy"
-  | "QRCodeBlockingStrategy"
-  | "QRManualBlockingStrategy"
-  | "QRTimerBlockingStrategy";
-
 export type SleepMetricsRange = "30D" | "90D" | "1Y" | "All";
 
-export type ActivitySelectionSnapshot = {
-  packageNames: string[];
-  categoryIds: string[];
-  webDomains: string[];
-  iosRawSelection?: string | null;
-};
-
-export type BlockedProfileSchedule = {
-  days: number[];
-  startHour: number;
-  startMinute: number;
-  endHour: number;
-  endMinute: number;
-  updatedAt: ISODateString;
-};
-
-export type BlockedProfile = {
-  id: string;
-  name: string;
-  selectedActivity: ActivitySelectionSnapshot;
-  createdAt: ISODateString;
-  updatedAt: ISODateString;
-  blockingStrategyId: BlockingStrategyId | null;
-  strategyData: string | null;
-  order: number;
-  enableLiveActivity: boolean;
-  reminderTimeInSeconds: number | null;
-  customReminderMessage: string | null;
-  enableBreaks: boolean;
-  breakTimeInMinutes: number;
-  enableStrictMode: boolean;
-  enableAllowMode: boolean;
-  enableAllowModeDomains: boolean;
-  enableSafariBlocking: boolean;
-  useSleepSchedule: boolean;
-  physicalUnblockNFCTagId: string | null;
-  physicalUnblockQRCodeId: string | null;
-  domains: string[] | null;
-  schedule: BlockedProfileSchedule | null;
-  disableBackgroundStops: boolean;
-};
-
-export type BlockedProfileSession = {
+export type SleepSession = {
   id: string;
   tag: string;
-  blockedProfileId: string;
   startTime: ISODateString;
   endTime: ISODateString | null;
-  breakStartTime: ISODateString | null;
-  breakEndTime: ISODateString | null;
   startTimeZoneIdentifier: string | null;
   endTimeZoneIdentifier: string | null;
-  breakStartTimeZoneIdentifier: string | null;
-  breakEndTimeZoneIdentifier: string | null;
-  forceStarted: boolean;
   needsHealthKitSync: boolean;
   healthKitSyncVersion: number;
 };
@@ -77,7 +20,6 @@ export type SleepSettings = {
   isOnboarded: boolean;
   optimalSleepMinutes: number;
   optimalWakeMinutes: number;
-  sleepProfileId: string | null;
   windDownReminderEnabled: boolean;
   healthSyncEnabled: boolean;
 };
@@ -85,12 +27,6 @@ export type SleepSettings = {
 export type AppearanceSettings = {
   themeMode: ThemeMode;
   colorPalette: ColorPalette;
-};
-
-export type EmergencyState = {
-  emergencyUnblocksRemaining: number;
-  emergencyUnblocksResetPeriodInWeeks: number;
-  lastEmergencyUnblocksResetDateTimestamp: number;
 };
 
 export type DemoRestoreState = {
@@ -104,21 +40,6 @@ export type AppStateRecord = {
   lastViewedTab: string;
 };
 
-export type SessionSnapshot = {
-  id: string;
-  tag: string;
-  blockedProfileId: string;
-  startTime: ISODateString;
-  endTime: ISODateString | null;
-  breakStartTime: ISODateString | null;
-  breakEndTime: ISODateString | null;
-  startTimeZoneIdentifier: string | null;
-  endTimeZoneIdentifier: string | null;
-  breakStartTimeZoneIdentifier: string | null;
-  breakEndTimeZoneIdentifier: string | null;
-  forceStarted: boolean;
-};
-
 export type ArchiveMetadata = {
   archiveType: string;
   schemaVersion: number;
@@ -129,49 +50,19 @@ export type ArchiveMetadata = {
 
 export type ArchivePayload = {
   metadata: ArchiveMetadata;
-  sleepSettings: {
-    isOnboarded: boolean;
-    optimalSleepMinutes: number;
-    optimalWakeMinutes: number;
-    sleepProfileId: string | null;
-    windDownReminderEnabled: boolean;
-    healthSyncEnabled: boolean;
-  };
-  appearance: {
-    themeMode: string;
-    colorPalette: string;
-  };
-  profiles: Record<string, unknown>[];
+  sleepSettings: SleepSettings;
+  appearance: AppearanceSettings;
   sessions: Record<string, unknown>[];
-  sharedState: {
-    activeSharedSession: SessionSnapshot | null;
-    completedScheduleSessions: SessionSnapshot[];
-  };
 };
 
 export type DataArchivePreview = {
   exportedAt: ISODateString;
   appVersion: string | null;
-  profileCount: number;
-  newProfiles: number;
-  updatedProfiles: number;
   sessionCount: number;
   newSessions: number;
   updatedSessions: number;
   settingsChanges: number;
   appearanceChanges: number;
-  completedScheduleSessionChanges: number;
-  hasIncomingActiveSharedSession: boolean;
-  hasActiveSessionConflict: boolean;
-};
-
-export type StrategyDescriptor = {
-  id: BlockingStrategyId;
-  name: string;
-  description: string;
-  icon: string;
-  accent: string;
-  executableInPhaseOne: boolean;
 };
 
 export type DailySleepData = {
@@ -257,11 +148,9 @@ export type SleepSocialJetlag = {
 
 export type HydratedAppState = {
   ready: boolean;
-  profiles: BlockedProfile[];
-  sessions: BlockedProfileSession[];
+  sessions: SleepSession[];
   sleepSettings: SleepSettings;
   appearance: AppearanceSettings;
-  emergency: EmergencyState;
   demoRestore: DemoRestoreState;
   appState: AppStateRecord;
   activeSessionId: string | null;

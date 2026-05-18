@@ -1,7 +1,7 @@
 import { MINIMUM_VALID_SESSION_SECONDS } from "@/lib/constants";
 import { addDays, clamp, minutesFromDate, startOfDay } from "@/lib/format";
 import type {
-  BlockedProfileSession,
+  SleepSession,
   DailySleepData,
   SleepAlignmentScorePoint,
   SleepConsistencyPoint,
@@ -61,18 +61,18 @@ function dateFromDayKey(key: string) {
   return new Date(`${key}T12:00:00`);
 }
 
-export function sessionDurationSeconds(session: BlockedProfileSession) {
+export function sessionDurationSeconds(session: SleepSession) {
   const start = toDate(session.startTime);
   const end = toDate(session.endTime) ?? new Date();
   if (!start) return 0;
   return Math.max(0, (end.getTime() - start.getTime()) / 1000);
 }
 
-export function isValidSession(session: BlockedProfileSession) {
+export function isValidSession(session: SleepSession) {
   return sessionDurationSeconds(session) >= MINIMUM_VALID_SESSION_SECONDS;
 }
 
-export function getSessionSleepDate(session: BlockedProfileSession) {
+export function getSessionSleepDate(session: SleepSession) {
   const end = toDate(session.endTime);
   const start = toDate(session.startTime);
   const zone = session.endTimeZoneIdentifier ?? session.startTimeZoneIdentifier ?? undefined;
@@ -145,7 +145,7 @@ function goalDurationHours(optimalSleepMinutes: number, optimalWakeMinutes: numb
 }
 
 function recordsFromSessions(
-  sessions: BlockedProfileSession[],
+  sessions: SleepSession[],
   optimalSleepMinutes: number,
   optimalWakeMinutes: number,
 ) {
@@ -174,8 +174,6 @@ function recordsFromSessions(
     .filter(Boolean) as SleepNightRecord[];
 
   const targetDurationHours = goalDurationHours(optimalSleepMinutes, optimalWakeMinutes);
-  const targetSleepOffset = calculateTimeOffset(new Date(`2024-01-01T00:00:00`));
-  void targetSleepOffset;
 
   return {
     records,
@@ -191,9 +189,9 @@ function timeOffsetFromMinutes(minutes: number) {
   return hours - SLEEP_DATA_BASE_HOUR;
 }
 
-export function canonicalSessions(sessions: BlockedProfileSession[]) {
+export function canonicalSessions(sessions: SleepSession[]) {
   const completed = sessions.filter((session) => session.endTime && isValidSession(session));
-  const bucket = new Map<string, BlockedProfileSession>();
+  const bucket = new Map<string, SleepSession>();
 
   for (const session of completed) {
     const end = toDate(session.endTime);
@@ -210,7 +208,7 @@ export function canonicalSessions(sessions: BlockedProfileSession[]) {
   );
 }
 
-export function processWeeklySleepData(sessions: BlockedProfileSession[]) {
+export function processWeeklySleepData(sessions: SleepSession[]) {
   const canonical = canonicalSessions(sessions);
   if (canonical.length === 0) return [];
 
@@ -287,7 +285,7 @@ export function calculateAccuracy(
 }
 
 export function buildSleepMetrics(
-  sessions: BlockedProfileSession[],
+  sessions: SleepSession[],
   optimalSleepMinutes: number,
   optimalWakeMinutes: number,
 ) {

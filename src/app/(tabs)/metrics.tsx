@@ -15,7 +15,7 @@ import {
 } from "@/charts";
 import { formatSignedHours } from "@/lib/format";
 import { buildSleepMetrics } from "@/lib/sleep";
-import { selectSleepProfile, useAppStore } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 import type { SleepMetricsRange, SleepNightRecord } from "@/lib/types";
 import {
   EmptyPanel,
@@ -55,7 +55,7 @@ function currentStreak(records: SleepNightRecord[]) {
 
 function bestStreak(records: SleepNightRecord[]) {
   if (records.length === 0) return 0;
-  const sorted = [...new Set(records.map((record) => dayStamp(record.date)))].sort((left, right) => left - right);
+  const sorted = [...new Set(records.map((record) => dayStamp(record.date)))].sort((left, right) => right - left);
   let best = 1;
   let run = 1;
   for (let index = 1; index < sorted.length; index += 1) {
@@ -85,11 +85,10 @@ function InlineEmpty({ title, subtitle }: { title: string; subtitle: string }) {
 
 export default function MetricsRoute() {
   const [range, setRange] = useState<SleepMetricsRange>("90D");
-  const [regularityComponent, setRegularityComponent] = useState<RegularityComponent>("All");
+  const [regComp, setRegComp] = useState<RegularityComponent>("All");
   const sessions = useAppStore((state) => state.sessions);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
   const setLastViewedTab = useAppStore((state) => state.setLastViewedTab);
-  const sleepProfile = useAppStore(selectSleepProfile);
   const { theme } = useTwilightTheme();
   const palette = chartPalette(theme);
 
@@ -97,17 +96,14 @@ export default function MetricsRoute() {
     setLastViewedTab("metrics").catch(() => undefined);
   }, [setLastViewedTab]);
 
-  const profileSessions = useMemo(
-    () =>
-      sleepProfile
-        ? sessions.filter((session) => session.blockedProfileId === sleepProfile.id && session.endTime)
-        : [],
-    [sessions, sleepProfile],
+  const completedSessions = useMemo(
+    () => sessions.filter((session) => session.endTime),
+    [sessions],
   );
 
   const metrics = useMemo(
-    () => buildSleepMetrics(profileSessions, sleepSettings.optimalSleepMinutes, sleepSettings.optimalWakeMinutes),
-    [profileSessions, sleepSettings.optimalSleepMinutes, sleepSettings.optimalWakeMinutes],
+    () => buildSleepMetrics(completedSessions, sleepSettings.optimalSleepMinutes, sleepSettings.optimalWakeMinutes),
+    [completedSessions, sleepSettings.optimalSleepMinutes, sleepSettings.optimalWakeMinutes],
   );
   const records = metrics.recordsInRange(range);
   const movingAverageSeries = metrics.movingAverageSeries(records, 7);
@@ -129,17 +125,6 @@ export default function MetricsRoute() {
   const weekendAverage =
     weekdayAverages.filter((day) => (day.weekday === 1 || day.weekday === 7) && day.nights > 0).reduce((sum, day) => sum + day.averageHours * day.nights, 0) /
     Math.max(1, weekdayAverages.filter((day) => day.weekday === 1 || day.weekday === 7).reduce((sum, day) => sum + day.nights, 0));
-
-  if (!sleepProfile) {
-    return (
-      <NativeScreen>
-        <EmptyPanel
-          title="Metrics unavailable"
-          subtitle="Complete onboarding and create a sleep profile to unlock long-range analytics."
-        />
-      </NativeScreen>
-    );
-  }
 
   return (
     <NativeScreen>
@@ -175,7 +160,7 @@ export default function MetricsRoute() {
           </GlassPanel>
 
           <GlassPanel style={{ gap: 14 }}>
-            <SectionHeader title="Highlights" subtitle="The same high-level sleep snapshot surfaced in the SwiftUI metrics overview." compact />
+            <SectionHeader title="Highlights" subtitle="The same high-level sleep snapshot surfaced in the metrics overview." compact />
             <MetricGrid>
               <MetricCard title="Longest Night" value={formatHoursCompact(metrics.longestNight(records))} subtitle="best banked sleep" icon="↑" tint={palette.green} />
               <MetricCard title="Shortest Night" value={formatHoursCompact(metrics.shortestNight(records))} subtitle="lowest valid sleep" icon="↓" tint={palette.orange} />
@@ -211,9 +196,9 @@ export default function MetricsRoute() {
           </GlassPanel>
 
           <GlassPanel style={{ gap: 12 }}>
-            <SectionHeader title="Regularity Components" subtitle="Switch between the SwiftUI timing filters to inspect the source of your score." compact />
-            <SegmentedPills options={regularityOptions} value={regularityComponent} onChange={setRegularityComponent} />
-            <RegularityComponentsChart series={consistencySeries} component={regularityComponent} />
+            <SectionHeader title="Regularity Components" subtitle="Switch between the timing filters to inspect the source of your score." compact />
+            <SegmentedPills options={regularityOptions} value={regComp} onChange={setRegComp} />
+            <RegularityComponentsChart series={consistencySeries} component={regComp} />
           </GlassPanel>
 
           <GlassPanel style={{ gap: 12 }}>
@@ -234,7 +219,7 @@ export default function MetricsRoute() {
           </GlassPanel>
 
           <GlassPanel style={{ gap: 12 }}>
-            <SectionHeader title="Nerd Stats" subtitle="Deeper scoring outputs ported from the Swift analyzer surface." compact />
+            <SectionHeader title="Nerd Stats" subtitle="Deeper scoring outputs from the sleep analyzer." compact />
             <SleepAlignmentChart series={alignmentSeries} />
             <MetricGrid>
               <MetricCard title="Latest Score" value={latestScore ? `${latestScore.dailyScore}%` : "-"} subtitle="alignment" icon="◎" tint={palette.green} />

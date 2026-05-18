@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { SleepWindowDialChart } from "@/charts";
-import { createSleepProfile } from "@/lib/db";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { useAppStore } from "@/lib/store";
 import {
@@ -25,7 +24,6 @@ const steps = [
   "Health",
   "Schedule",
   "Notifications",
-  "NFC",
   "Demo",
 ] as const;
 
@@ -53,11 +51,9 @@ export default function OnboardingRoute() {
       return;
     }
 
-    const profile = await createSleepProfile();
     await updateSleepSettings({
       optimalSleepMinutes: sleepMinutes,
       optimalWakeMinutes: wakeMinutes,
-      sleepProfileId: profile.id,
       isOnboarded: true,
     });
     router.replace("/(tabs)/home");
@@ -80,7 +76,7 @@ export default function OnboardingRoute() {
     <NativeScreen>
       <SectionHeader
         title="Twilight"
-        subtitle="A local-first sleep tracker rebuilt for Android while preserving the full in-app iOS surface."
+        subtitle="A local-first sleep tracker designed to help you manage your rhythm."
         trailing={
           <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: "800" }}>
             {stepIndex + 1}/{steps.length}
@@ -96,33 +92,32 @@ export default function OnboardingRoute() {
             <Ionicons name="moon" size={42} color={theme.accent} />
           </View>
           <Text style={{ color: theme.textPrimary, fontSize: 40, lineHeight: 44, fontWeight: "900" }}>
-            Good night, Android.
+            Good night.
           </Text>
           <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
-            Twilight starts with manual sessions, sleep logs, analytics, backup, restore, reminders, and demo mode.
-            Native Android integrations are layered in behind explicit adapters.
+            Twilight starts with manual sessions, sleep logs, analytics, backup, restore, and reminders.
           </Text>
         </GlassPanel>
       ) : null}
 
       {step === "Tracking" ? (
         <GlassPanel style={{ gap: 14 }}>
-          <SectionHeader title="Health & Tracking" subtitle="The phase 1 surface mirrors the SwiftUI app before native Android enforcement is added." compact />
+          <SectionHeader title="Tracking & Analytics" subtitle="Track your sleep and visualize your progress over time." compact />
           <MetricGrid>
             <MetricCard title="Analytics" value="Charts" subtitle="weekly and long-range" icon="↗" tint={palette.cyan} />
             <MetricCard title="Logs" value="Editable" subtitle="wake-day semantics" icon="☾" tint={palette.indigo} />
-            <MetricCard title="Backup" value="JSON" subtitle="iOS-compatible archive" icon="◇" tint={palette.green} />
-            <MetricCard title="Safety" value="Local" subtitle="emergency access" icon="◎" tint={palette.orange} />
+            <MetricCard title="Backup" value="JSON" subtitle="full data archive" icon="◇" tint={palette.green} />
+            <MetricCard title="Privacy" value="Local" subtitle="your data stays here" icon="◎" tint={palette.orange} />
           </MetricGrid>
         </GlassPanel>
       ) : null}
 
       {step === "Health" ? (
         <GlassPanel style={{ gap: 12 }}>
-          <SectionHeader title="Health Connect" subtitle="Deferred in phase 1" compact />
+          <SectionHeader title="Apple Health" subtitle="Sync your data" compact />
           <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
-            Apple Health is represented here as an Android Health Connect placeholder. Sleep data remains fully local,
-            editable, and exportable until native sync ships in phase 2.
+            Twilight can sync your sleep data with Apple Health. Data remains fully local,
+            editable, and exportable.
           </Text>
         </GlassPanel>
       ) : null}
@@ -141,19 +136,9 @@ export default function OnboardingRoute() {
 
       {step === "Notifications" ? (
         <GlassPanel style={{ gap: 12 }}>
-          <SectionHeader title="Notifications" subtitle="Wind-down and session reminders are live in phase 1." compact />
+          <SectionHeader title="Notifications" subtitle="Get reminders before bedtime." compact />
           <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
-            Twilight will ask for permission next so it can remind you before bedtime and when breaks are about to end.
-          </Text>
-        </GlassPanel>
-      ) : null}
-
-      {step === "NFC" ? (
-        <GlassPanel style={{ gap: 12 }}>
-          <SectionHeader title="NFC & QR Shortcuts" subtitle="Deferred in Android core" compact />
-          <Text style={{ color: theme.textSecondary, fontSize: 15, lineHeight: 23 }}>
-            The full strategy model remains visible, including NFC and QR sleep controls. Android-native physical
-            triggers are phase 2 work; manual sessions are executable now.
+            Twilight will ask for permission next so it can remind you when it&apos;s time to wind down.
           </Text>
         </GlassPanel>
       ) : null}

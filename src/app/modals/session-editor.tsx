@@ -24,7 +24,7 @@ function applyMinutesToDate(baseDate: Date, totalMinutes: number) {
 }
 
 export default function SessionEditorModal() {
-  const { profileId, sessionId } = useLocalSearchParams<{ profileId: string; sessionId?: string }>();
+  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const sessions = useAppStore((state) => state.sessions);
   const sleepSettings = useAppStore((state) => state.sleepSettings);
   const upsertSleepLog = useAppStore((state) => state.upsertSleepLog);
@@ -71,7 +71,6 @@ export default function SessionEditorModal() {
   async function save() {
     await upsertSleepLog({
       id: existing?.id,
-      blockedProfileId: String(profileId),
       tag,
       startTime: sleepDate.toISOString(),
       endTime: wakeDate.toISOString(),
@@ -93,7 +92,7 @@ export default function SessionEditorModal() {
     <NativeScreen>
       <SectionHeader
         title={existing ? "Edit Log" : "Log Sleep"}
-        subtitle="Wake day drives the calendar day, matching Twilight’s iOS sleep semantics."
+        subtitle="Wake day drives the calendar day, matching Twilight’s sleep semantics."
       />
 
       <GlassPanel style={{ gap: 14 }}>

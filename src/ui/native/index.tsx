@@ -1,97 +1,20 @@
+import React from "react";
 import {
-  BottomSheet as ExpoBottomSheet,
-  Button as ExpoButton,
-  Column as ExpoColumn,
-  FieldGroup as ExpoFieldGroup,
-  Host,
-  Row as ExpoRow,
-  Text as ExpoText,
-  Switch as ExpoSwitch,
-  TextInput as ExpoTextInput,
-  useNativeState,
-} from "@expo/ui";
-import { createContext, useContext, Children, isValidElement } from "react";
-import { Platform, View, type ViewStyle } from "react-native";
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+  type ViewStyle,
+  Platform,
+} from "react-native";
 
-// We use NativeTreeContext to track if we are already inside a SwiftUI/Compose tree.
-// If we are, we don't need another Host, and we must wrap RN children in RNHostView.
-const NativeTreeContext = createContext(false);
+import { useTwilightTheme } from "@/ui/surface";
 
 /**
- * Universal RNHostView that bridges React Native components into the native hierarchy.
- * On iOS, this uses RNHostView from @expo/ui/swift-ui.
+ * A standard React Native replacement for the previous native-only FieldGroup.
  */
-function UniversalRNHostView({ children }: { children: React.ReactNode }) {
-  if (Platform.OS === "ios") {
-    let RNHostView: any;
-    try {
-      // Use dynamic require to avoid bundling issues on other platforms
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const uiSwiftUI = require("@expo/ui/swift-ui");
-      RNHostView = uiSwiftUI.RNHostView;
-    } catch (e) {
-      console.error("Failed to load RNHostView from @expo/ui/swift-ui", e);
-      return <>{children}</>;
-    }
-
-    if (!RNHostView) return <>{children}</>;
-
-    return (
-      <RNHostView matchContents>
-        {isValidElement(children) ? children : <View>{children}</View>}
-      </RNHostView>
-    );
-  }
-
-  if (Platform.OS === "android") {
-    let RNHostView: any;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const uiCompose = require("@expo/ui/jetpack-compose");
-      RNHostView = uiCompose.RNHostView;
-    } catch {
-      return <>{children}</>;
-    }
-
-    if (!RNHostView) return <>{children}</>;
-
-    return (
-      <RNHostView matchContents>
-        {isValidElement(children) ? children : <View>{children}</View>}
-      </RNHostView>
-    );
-  }
-
-  return <>{children}</>;
-}
-
-/**
- * Use this to wrap standard React Native views when they are children of a native container (like FieldSection).
- */
-export function NativeHost({ children }: { children: React.ReactNode }) {
-  const isInside = useContext(NativeTreeContext);
-  if (!isInside) return <>{children}</>;
-  return <UniversalRNHostView>{children}</UniversalRNHostView>;
-}
-
-/**
- * Ensures SwiftUI/Compose views have a Host when used outside a native tree,
- * and passes through when already hosted.
- */
-function NativeBoundary({ children, matchContents, style }: { children: React.ReactNode; matchContents?: boolean; style?: ViewStyle }) {
-  const isInside = useContext(NativeTreeContext);
-  if (isInside) {
-    return <>{children}</>;
-  }
-  return (
-    <Host matchContents={matchContents} style={style}>
-      <NativeTreeContext.Provider value={true}>
-        {children}
-      </NativeTreeContext.Provider>
-    </Host>
-  );
-}
-
 export function NativeFieldGroup({
   children,
   style,
@@ -99,15 +22,12 @@ export function NativeFieldGroup({
   children: React.ReactNode;
   style?: ViewStyle;
 }) {
-  return (
-    <NativeBoundary style={style}>
-      <ExpoFieldGroup style={{ backgroundColor: "transparent" }}>
-        {children}
-      </ExpoFieldGroup>
-    </NativeBoundary>
-  );
+  return <View style={[styles.fieldGroup, style]}>{children}</View>;
 }
 
+/**
+ * A standard React Native replacement for the previous native-only FieldSection.
+ */
 export function NativeFieldSection({
   title,
   footer,
@@ -117,29 +37,27 @@ export function NativeFieldSection({
   footer?: string;
   children: React.ReactNode;
 }) {
-  // Every child of a native Section MUST be wrapped in RNHostView if it's a React component.
-  // We do this automatically here to restore the "missing" sections.
-  const childrenWithHosting = Children.map(children, (child) => {
-    if (!child) return null;
-    return <NativeHost>{child}</NativeHost>;
-  });
-
+  const { theme } = useTwilightTheme();
   return (
-    <ExpoFieldGroup.Section title={title} titleUppercase>
-      {childrenWithHosting}
-      {footer ? (
-        <ExpoFieldGroup.SectionFooter>
-          <NativeHost>
-            <View>
-              <ExpoText style={{ opacity: 0.65 }}>{footer}</ExpoText>
-            </View>
-          </NativeHost>
-        </ExpoFieldGroup.SectionFooter>
+    <View style={styles.fieldSection}>
+      {title ? (
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+          {title.toUpperCase()}
+        </Text>
       ) : null}
-    </ExpoFieldGroup.Section>
+      <View style={[styles.sectionContent, { backgroundColor: theme.glass, borderColor: theme.outline }]}>
+        {children}
+      </View>
+      {footer ? (
+        <Text style={[styles.sectionFooter, { color: theme.textSecondary }]}>{footer}</Text>
+      ) : null}
+    </View>
   );
 }
 
+/**
+ * A standard React Native row component.
+ */
 export function NativeRow({
   title,
   subtitle,
@@ -151,28 +69,27 @@ export function NativeRow({
   trailing?: React.ReactNode;
   onPress?: () => void;
 }) {
-  const isInside = useContext(NativeTreeContext);
+  const { theme } = useTwilightTheme();
+  const Container = onPress ? Pressable : View;
 
-  const content = (
-    <ExpoRow alignment="center" onPress={onPress} style={{ paddingVertical: 8 }}>
-      <ExpoColumn spacing={3} style={{ paddingRight: 8 }}>
-        <ExpoText style={{ opacity: 0.9 }}>
-          {title}
-        </ExpoText>
+  return (
+    <Container
+      onPress={onPress}
+      style={({ pressed }: any) => [
+        styles.row,
+        pressed && styles.rowPressed,
+        { borderBottomColor: theme.outline },
+      ]}
+    >
+      <View style={styles.rowLabel}>
+        <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>{title}</Text>
         {subtitle ? (
-          <ExpoText style={{ opacity: 0.6 }}>
-            {subtitle}
-          </ExpoText>
+          <Text style={[styles.rowSubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
         ) : null}
-      </ExpoColumn>
-      {trailing ? (
-        <NativeBoundary matchContents>{trailing}</NativeBoundary>
-      ) : null}
-    </ExpoRow>
+      </View>
+      {trailing ? <View style={styles.rowTrailing}>{trailing}</View> : null}
+    </Container>
   );
-
-  if (isInside) return content;
-  return <NativeBoundary matchContents>{content}</NativeBoundary>;
 }
 
 export function NativeSwitchRow({
@@ -188,11 +105,20 @@ export function NativeSwitchRow({
   onValueChange: (value: boolean) => void;
   disabled?: boolean;
 }) {
+  const { theme } = useTwilightTheme();
   return (
     <NativeRow
       title={title}
       subtitle={subtitle}
-      trailing={<ExpoSwitch value={value} onValueChange={onValueChange} disabled={disabled} />}
+      trailing={
+        <Switch
+          value={value}
+          onValueChange={onValueChange}
+          disabled={disabled}
+          trackColor={{ false: theme.outline, true: theme.accent }}
+          thumbColor={Platform.OS === "ios" ? undefined : value ? theme.accent : "#f4f3f4"}
+        />
+      }
     />
   );
 }
@@ -208,10 +134,28 @@ export function NativeActionButton({
   variant?: "filled" | "outlined" | "text";
   disabled?: boolean;
 }) {
+  const { theme } = useTwilightTheme();
   return (
-    <NativeBoundary matchContents>
-      <ExpoButton label={title} onPress={onPress} variant={variant} disabled={disabled} />
-    </NativeBoundary>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.actionButton,
+        variant === "filled" && { backgroundColor: theme.accent },
+        variant === "outlined" && { borderWidth: 1, borderColor: theme.accent },
+        pressed && { opacity: 0.7 },
+        disabled && { opacity: 0.5 },
+      ]}
+    >
+      <Text
+        style={[
+          styles.actionButtonText,
+          { color: variant === "filled" ? "#000" : theme.accent },
+        ]}
+      >
+        {title}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -228,18 +172,22 @@ export function NativeTextField({
   placeholder?: string;
   multiline?: boolean;
 }) {
-  const textState = useNativeState(value);
+  const { theme } = useTwilightTheme();
   return (
     <NativeRow
       title={title}
       trailing={
-        <ExpoTextInput
-          value={textState}
+        <TextInput
+          value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
+          placeholderTextColor={theme.textSecondary}
           multiline={multiline}
-          textAlign="right"
-          style={{ width: multiline ? 220 : 120, height: multiline ? 96 : 40 }}
+          style={[
+            styles.textField,
+            { color: theme.textPrimary },
+            multiline && { height: 80, textAlignVertical: "top" },
+          ]}
         />
       }
     />
@@ -255,24 +203,29 @@ export function NativeSegmentedControl<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const { theme } = useTwilightTheme();
   return (
-    <View style={{ flexDirection: "row", gap: 6 }}>
+    <View style={styles.segmentedControl}>
       {options.map((option) => {
         const selected = option === value;
         return (
-          <View key={option} style={{ flex: 1 }}>
-            <NativeBoundary matchContents>
-              <ExpoButton
-                label={option}
-                variant={selected ? "filled" : "outlined"}
-                onPress={() => onChange(option)}
-                style={{
-                  height: 34,
-                  borderRadius: 16,
-                }}
-              />
-            </NativeBoundary>
-          </View>
+          <Pressable
+            key={option}
+            onPress={() => onChange(option)}
+            style={[
+              styles.segment,
+              selected && { backgroundColor: theme.accent },
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                { color: selected ? "#000" : theme.textPrimary },
+              ]}
+            >
+              {option}
+            </Text>
+          </Pressable>
         );
       })}
     </View>
@@ -291,17 +244,10 @@ export function NativePickerRow<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <NativeRow
-      title={title}
-      subtitle={value}
-      trailing={
-        <NativeSegmentedControl
-          options={options}
-          value={value}
-          onChange={onChange}
-        />
-      }
-    />
+    <View style={styles.pickerRow}>
+      <Text style={styles.pickerTitle}>{title}</Text>
+      <NativeSegmentedControl options={options} value={value} onChange={onChange} />
+    </View>
   );
 }
 
@@ -314,31 +260,123 @@ export function NativeDateTimeRow({
   value: string;
   onPress?: () => void;
 }) {
+  const { theme } = useTwilightTheme();
   return (
     <NativeRow
       title={title}
-      trailing={<ExpoButton label={value} variant="outlined" onPress={onPress} style={{ borderRadius: 14 }} />}
+      trailing={
+        <Pressable
+          onPress={onPress}
+          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.glass }}
+        >
+          <Text style={{ color: theme.accent, fontWeight: "600" }}>{value}</Text>
+        </Pressable>
+      }
     />
   );
 }
 
-export function NativeBottomSheet({
-  children,
-  isPresented,
-  onDismiss,
-}: {
-  children: React.ReactNode;
-  isPresented: boolean;
-  onDismiss: () => void;
-}) {
-  return (
-    <NativeBoundary>
-      <ExpoBottomSheet isPresented={isPresented} onDismiss={onDismiss} showDragIndicator>
-        {children}
-      </ExpoBottomSheet>
-    </NativeBoundary>
-  );
+// Dummy implementation for now to keep things running
+export function NativeHost({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 export const NativeList = NativeFieldGroup;
 export const NativeScreen = View;
+
+const styles = StyleSheet.create({
+  fieldGroup: {
+    gap: 20,
+  },
+  fieldSection: {
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 16,
+    letterSpacing: 0.5,
+  },
+  sectionContent: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  sectionFooter: {
+    fontSize: 12,
+    marginLeft: 16,
+    marginRight: 16,
+    lineHeight: 16,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 52,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowPressed: {
+    opacity: 0.7,
+  },
+  rowLabel: {
+    flex: 1,
+    gap: 2,
+  },
+  rowTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  rowSubtitle: {
+    fontSize: 13,
+  },
+  rowTrailing: {
+    marginLeft: 12,
+  },
+  actionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  textField: {
+    fontSize: 16,
+    textAlign: "right",
+    minWidth: 100,
+    padding: 0,
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    padding: 2,
+    gap: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  pickerRow: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+    opacity: 0.6,
+  },
+});
